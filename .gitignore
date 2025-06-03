@@ -198,3 +198,4 @@ Scripts/*
 Include/*
 Lib/*
 bin/*
+*.sqlite
