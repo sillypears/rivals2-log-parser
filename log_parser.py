@@ -6,8 +6,9 @@ import utils.folders
 from typing import TextIO
 from pprint import pprint 
 import re
-from db.database import SQLiteInterface
+from db.database import MariaDBInterface
 from datetime import datetime
+import utils.calc_elo as calc_elo
 
 load_dotenv()
 RIVALS_FOLDER = os.path.join(os.path.dirname(os.getenv("APPDATA")), "Local", "Rivals2", "Saved")
@@ -83,6 +84,7 @@ def extract_numbers(line: str, file: str = None) -> dict:
 
     numbers = re.findall(r'-?\d+', line)
     ranks = numbers[-6:]
+    win_loss = 0 if int(ranks[2]) < 0 else 1
     try:
         result = {
             "match_date": dt,
@@ -92,7 +94,7 @@ def extract_numbers(line: str, file: str = None) -> dict:
             "ranked_game_number": int(ranks[3]),
             "total_wins": int(ranks[4]),
             "win_streak_value": int(ranks[5]),
-            "opponent_elo":  -1,
+            "opponent_elo":  calc_elo.estimate_opponent_elo(my_elo=int(ranks[1]), elo_change=int(ranks[2]), result=win_loss),
             "game_1_char_pick": "None",
             "game_1_opponent_pick": "None",
             "game_1_stage":  "None",
@@ -134,7 +136,7 @@ def extract_numbers(line: str, file: str = None) -> dict:
 
 def main():
     logger.info("Getting DB")
-    db = SQLiteInterface()
+    db = MariaDBInterface(host=os.environ.get('DB_HOST'), port=os.environ.get('DB_PORT'), user=os.environ.get('DB_USER'), password=os.environ.get('DB_PASS'), database=os.environ.get('DB_SCHEMA'))
     logger.info("Getting log files")
     replay_files = sorted(utils.folders.get_files(RIVALS_LOG_FOLDER))
     replay_files.pop(replay_files.index("Rivals2.log"))

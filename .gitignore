@@ -199,3 +199,4 @@ Include/*
 Lib/*
 bin/*
 *.sqlite
+dump.sql
