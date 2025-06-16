@@ -9,7 +9,11 @@ import re
 from db.database import MariaDBInterface
 from datetime import datetime
 import utils.calc_elo as calc_elo
-
+from utils.match import Match
+import requests
+from pprint import pprint
+import json
+from pydantic import TypeAdapter
 load_dotenv()
 RIVALS_FOLDER = os.path.join(os.path.dirname(os.getenv("APPDATA")), "Local", "Rivals2", "Saved")
 RIVALS_LOG_FOLDER = os.path.join(RIVALS_FOLDER, "Logs")
@@ -20,7 +24,7 @@ def setup_logging():
     os.makedirs(os.environ.get("LOG_DIR"), exist_ok=True)
     
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG if os.environ.get("DEBUG") else logging.INFO) 
+    logger.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG"))  else logging.INFO) 
 
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -76,12 +80,14 @@ def extract_numbers(line: str, file: str = None) -> dict:
     numbers = re.findall(r'-?\d+', line)
     ranks = numbers[-6:]
     match = re.search(r'\[(\d{4}\.\d{2}\.\d{2})-(\d{2}\.\d{2}\.\d{2})', line)
-    if match:
-        date_str = f"{match.group(1)} {match.group(2)}"
-        dt = datetime.strptime(date_str, "%Y.%m.%d %H.%M.%S")
-    else:
-        dt = None
-
+    try:
+        if match:
+            date_str = f"{match.group(1)} {match.group(2)}"
+            dt = datetime.strptime(date_str, "%Y.%m.%d %H.%M.%S")
+        else:
+            dt = None
+    except:
+        logging.error(f"Couldn't extract date: {match.group(1)} {match.group(2)}")
     numbers = re.findall(r'-?\d+', line)
     ranks = numbers[-6:]
     win_loss = 0 if int(ranks[2]) < 0 else 1
@@ -134,9 +140,20 @@ def extract_numbers(line: str, file: str = None) -> dict:
         }
     return result
 
-def main():
+def post_match(match: Match):
+    res = requests.post(f"http://{os.getenv('BE_HOST')}:{os.getenv('BE_PORT')}/insert-match", data=TypeAdapter(Match).dump_json(match))
+    return 0
+
+def parse_log(dev: int) -> dict:
     logger.info("Getting DB")
-    db = MariaDBInterface(host=os.environ.get('DB_HOST'), port=os.environ.get('DB_PORT'), user=os.environ.get('DB_USER'), password=os.environ.get('DB_PASS'), database=os.environ.get('DB_SCHEMA'))
+    try:
+        if not dev:
+            db = MariaDBInterface(host=os.environ.get('DB_HOST'), port=os.environ.get('DB_PORT'), user=os.environ.get('DB_USER'), password=os.environ.get('DB_PASS'), database=os.environ.get('DB_SCHEMA'))
+        else:
+            db = MariaDBInterface(host=os.environ.get('DEV_DB_HOST'), port=os.environ.get('DEV_DB_PORT'), user=os.environ.get('DEV_DB_USER'), password=os.environ.get('DEV_DB_PASS'), database=os.environ.get('DEV_DB_SCHEMA'))
+    except Exception as err:
+        logger.error(err)
+        return []
     logger.info("Getting log files")
     replay_files = sorted(utils.folders.get_files(RIVALS_LOG_FOLDER))
     replay_files.pop(replay_files.index("Rivals2.log"))
@@ -144,15 +161,53 @@ def main():
 
     logger.info("Parsing data from logs")
     data = find_rank_in_logs(replay_files)
-
+    count = []
+    try:
+        db.see_if_game_exists(666)
+    except:
+        logger.debug("No match 666 found")
     for match in data:
         if not db.see_if_game_exists(match["ranked_game_number"]):
-            db.insert_match(match)
+            new_match = Match(
+                match_date=match["match_date"].isoformat() if isinstance(match["match_date"], datetime) else match["match_date"],
+                elo_rank_new=match["elo_rank_new"],
+                elo_rank_old=match["elo_rank_old"],
+                elo_change=match["elo_change"],
+                ranked_game_number=match["ranked_game_number"],
+                total_wins=match["total_wins"],
+                win_streak_value=match["win_streak_value"],
+                opponent_elo=match["opponent_elo"],
+                game_1_char_pick=match["game_1_char_pick"],
+                game_1_opponent_pick=match["game_1_opponent_pick"],
+                game_1_stage=match["game_1_stage"],
+                game_1_winner=match["game_1_winner"],
+                game_2_char_pick=match["game_2_char_pick"],
+                game_2_opponent_pick=match["game_2_opponent_pick"],
+                game_2_stage=match["game_2_stage"],
+                game_2_winner=match["game_2_winner"],
+                game_3_char_pick=match["game_3_char_pick"],
+                game_3_opponent_pick=match["game_3_opponent_pick"],
+                game_3_stage=match["game_3_stage"],
+                game_3_winner=match["game_3_winner"]
+            )
+            # db.insert_match(match)
+            post_match(new_match)
             logger.info(f"Inserting match: Game: {match["ranked_game_number"]} Rank: {match["elo_rank_new"]}")
+            count.append(match)
         else:
             logger.debug(f"Match exists: ID {match["ranked_game_number"]}")
     logger.info("Closing DB and exiting")
     db.close()
+    logger.debug(count)
+    return count
+
+def truncate_db(dev: int) -> None:
+    if dev:
+        db = MariaDBInterface(host=os.environ.get('DEV_DB_HOST'), port=os.environ.get('DEV_DB_PORT'), user=os.environ.get('DEV_DB_USER'), password=os.environ.get('DEV_DB_PASS'), database=os.environ.get('DEV_DB_SCHEMA'))
+        db.truncate_db(os.environ.get('DEV_DB_SCHEMA'), "matches")
+    return 0
+def main():
+    parse_log()
 
     return 0
 

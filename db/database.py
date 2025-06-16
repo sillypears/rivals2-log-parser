@@ -1,116 +1,33 @@
 # db_interface.py
 import os, sys
-import sqlite3
 import mysql
 from mysql.connector import Error
 from datetime import datetime
+import logging
 
-class SQLiteInterface:
-    def __init__(self, db_path='rivals2.sqlite'):
-        self.conn = sqlite3.connect(db_path)
-        self.cursor = self.conn.cursor()
-        self.create_table()
-
-    def create_table(self):
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS matches (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                match_date TEXT,
-                elo_rank_new INTEGER,
-                elo_rank_old INTEGER,
-                elo_change INTEGER,
-                ranked_game_number INTEGER,
-                total_wins INTEGER,
-                win_streak_value INTEGER,
-                opponent_elo INTEGER DEFAULT -1,
-                game_1_char_pick TEXT DEFAULT "None",
-                game_1_opponent_pick TEXT DEFAULT "None",
-                game_1_stage TEXT DEFAULT "None",
-                game_1_winner INTEGER DEFAULT -1,
-                game_2_char_pick TEXT DEFAULT "None",
-                game_2_opponent_pick TEXT DEFAULT "None",
-                game_2_stage TEXT DEFAULT "None",
-                game_2_winner INTEGER DEFAULT -1,
-                game_3_char_pick TEXT DEFAULT "None",
-                game_3_opponent_pick TEXT DEFAULT "None",
-                game_3_stage TEXT DEFAULT "None",
-                game_3_winner INTEGER DEFAULT -1
-            )
-        ''')
-        self.conn.commit()
-
-    def insert_match(self, match_data: dict):
-        self.cursor.execute('''
-            INSERT INTO matches (
-                match_date,
-                elo_rank_new,
-                elo_rank_old,
-                elo_change,
-                ranked_game_number,
-                total_wins,
-                win_streak_value,
-                opponent_elo,
-                game_1_char_pick,
-                game_1_opponent_pick,
-                game_1_stage,
-                game_1_winner,
-                game_2_char_pick,
-                game_2_opponent_pick,
-                game_2_stage,
-                game_2_winner,
-                game_3_char_pick,
-                game_3_opponent_pick,
-                game_3_stage,
-                game_3_winner
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            match_data["match_date"].isoformat(),
-            match_data["elo_rank_new"],
-            match_data["elo_rank_old"],
-            match_data["elo_change"],
-            match_data["ranked_game_number"],
-            match_data["total_wins"],
-            match_data["win_streak_value"],
-            match_data["opponent_elo"],
-            match_data["game_1_char_pick"],
-            match_data["game_1_opponent_pick"],
-            match_data["game_1_stage"],
-            match_data["game_1_winner"],
-            match_data["game_2_char_pick"],
-            match_data["game_2_opponent_pick"],
-            match_data["game_2_stage"],
-            match_data["game_2_winner"],
-            match_data["game_3_char_pick"],
-            match_data["game_3_opponent_pick"],
-            match_data["game_3_stage"],
-            match_data["game_3_winner"]
-        ))
-        self.conn.commit()
-    def see_if_game_exists(self, game_no: int) -> bool:
-        self.cursor.execute("SELECT id FROM matches WHERE ranked_game_number = ?", (game_no,))
-        return self.cursor.fetchone() is not None
-    
-    def fetch_all_logs(self):
-        self.cursor.execute('SELECT * FROM logs')
-        return self.cursor.fetchall()
-
-    def close(self):
-        self.conn.close()
-
+logger = logging.getLogger()
 
 class MariaDBInterface:
     def __init__(self, host, port, user, password, database):
-        self.conn = mysql.connector.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            database=database
-        )
+        logger.debug(f"Creating DB interface for {host}:{port}")
+        try:
+            self.conn = mysql.connector.connect(
+                host=host,
+                port=int(port),
+                user=user,
+                password=password,
+                database=database
+            )
+        except Error as e:
+            logger.error(f"Connection error: {e}")
+            raise
+        logger.debug(f"Created DB interface for {host}:{port}")
         self.cursor = self.conn.cursor()
-        self.create_table()
-    def create_table(self):
+        self.create_seasons_table()
+        self.create_matches_table()
+
+    def create_matches_table(self):
+        logger.debug("Creating matches table")
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS matches (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -137,7 +54,39 @@ class MariaDBInterface:
             )
         ''')
         self.conn.commit()
-
+        logger.debug("Committing matches table")
+    def create_seasons_table(self):
+        logger.debug("Creating seasons")
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS seasons (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                start_date DATETIME,
+                end_date DATETIME,
+                short_name VARCHAR(100),
+                display_name VARCHAR(100)
+            )
+        ''')
+        self.cursor.execute("SELECT count(id) FROM seasons")
+        count = int(self.cursor.fetchone()[0])
+        if count < 1:
+            self.cursor.execute(''' 
+                INSERT INTO seasons (
+                    start_date,
+                    end_date,
+                    short_name,
+                    display_name
+                ) VALUES ("2024-10-23T00:00:00", "2025-03-03T23:59:59", "ranked_lite", "Ranked Lite")
+            ''', ())
+            self.cursor.execute('''
+                INSERT INTO seasons (
+                    start_date, 
+                    end_date,
+                    short_name,
+                    display_name
+                ) VALUES ("2025-03-04T00:00:00", "2025-07:01T21:59:59", "spring_2025", "Spring 2025")
+            ''', ())
+        self.conn.commit()
+        logger.debug("Loaded seasons")
     def insert_match(self, match_data: dict):
         self.cursor.execute('''
             INSERT INTO matches (
@@ -187,10 +136,17 @@ class MariaDBInterface:
         self.conn.commit()
 
     def see_if_game_exists(self, game_no: int) -> bool:
+        logger.debug("Checking match existance")
         self.cursor.execute("SELECT id FROM matches WHERE ranked_game_number = %s", (game_no,))
         return self.cursor.fetchone() is not None
 
+    def truncate_db(self, db_name: str, table: str):
+        print(f"TRUNCATE {db_name}.{table};")
+        self.cursor.execute(f"TRUNCATE {db_name}.{table}")
+        return 0
+    
     def close(self):
+        logger.debug("Closing DB interface")
         self.cursor.close()
         self.conn.close()
 
