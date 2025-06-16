@@ -1,0 +1,24 @@
+LOG_DIR = "logs"
+LOG_FILE = "app.log"
+MAX_LOG_SIZE = 5242880
+BACKUP_COUNT = 3
+REPLAY_FOLDER = "C:\\Users\\blarps\\AppData\\Local\\Rivals2\\Saved\\Replays"
+DB_HOST = ip
+DB_PORT = 3306
+DB_USER = user
+DB_PASS = pass
+DB_SCHEMA = rivals2
+
+DEV_DB_HOST = ip
+DEV_DB_PORT = 3306
+DEV_DB_USER = user
+DEV_DB_PASS = pass
+DEV_DB_SCHEMA = rivals2_test
+
+RIV2_DEBUG = 1
+
+BE_HOST = ip
+BE_PORT = 8005
+
+WS_HOST = ip
+WS_PORT = 8008
