@@ -12,11 +12,13 @@ import log_parser
 load_dotenv()
 logger = logging.getLogger()
 
+
 def setup_logging():
     os.makedirs(os.environ.get("LOG_DIR"), exist_ok=True)
     
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG"))  else logging.INFO) 
+    logger.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG")) else logging.INFO) 
+    logger.info(logger.level)
 
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -30,11 +32,11 @@ def setup_logging():
     )
 
     file_handler.setFormatter(formatter)
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG")) else logging.INFO)
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG")) else logging.INFO)
 
     if not logger.handlers:
         logger.addHandler(file_handler)
@@ -50,17 +52,13 @@ def run_parser(dev: int = 0):
             ranks = []
             log_parser.setup_logging()
             result = log_parser.parse_log(cbvar.get())
-            try:
-                print(",".join(str(x["elo_rank_new"]) for x in result))
-            except Exception as e:
-                print("i dunno:", e)
             output_text.insert(tk.END, "Log parsing complete.\n")
             output_text.insert(tk.END, f"Added {len(result)} matches: {[",".join(str(x["elo_rank_new"]) for x in result)] if result else ""}\n")
             output_text.see(tk.END)
             # messagebox.showinfo("Done", "Log parsing complete.")
             if cbvar.get():
-                log_parser.truncate_db(cbvar.get())
-                output_text.insert(tk.END, "Truncating\n")
+                #log_parser.truncate_db(cbvar.get())
+                #output_text.insert(tk.END, "Truncating\n")
                 output_text.see(tk.END)
         except Exception as e:
             output_text.insert(tk.END, f"Error: {e}\n")
@@ -72,6 +70,8 @@ def run_parser(dev: int = 0):
 
 def show_debug():
     output_text.insert(tk.END, f"{cbvar.get()}\n")
+
+setup_logging()
 
 root = tk.Tk()
 root.title("Rivals 2 Log Parser")

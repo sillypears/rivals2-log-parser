@@ -24,8 +24,8 @@ def setup_logging():
     os.makedirs(os.environ.get("LOG_DIR"), exist_ok=True)
     
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG"))  else logging.INFO) 
-
+    logger.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG")) else logging.INFO) 
+    logger.info(logger.getEffectiveLevel())
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
@@ -62,12 +62,15 @@ def search_file(file: TextIO, string: str) -> str:
 def find_rank_in_logs(files: list[str]):
     ranks = []
     data = []
+    logger.debug("in findrank")
     with open(os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log"), 'r') as f:
+        logger.debug(f"Reading file: Rivals2.log")
         x = search_file(f, "URivalsRankUpdateMessage::OnReceivedFromServer LocalPlayerIndex")
         if x:
             data.extend(x)
     for file in files:
         with open(os.path.join(RIVALS_LOG_FOLDER, file), 'r') as f:
+            logger.debug(f"Readering file: {file}")
             x = search_file(f, "URivalsRankUpdateMessage::OnReceivedFromServer LocalPlayerIndex")
             if x:
                 data.extend(x)
@@ -140,10 +143,13 @@ def extract_numbers(line: str, file: str = None) -> dict:
         }
     return result
 
-def post_match(match: Match):
-    res = requests.post(f"http://{os.getenv('BE_HOST')}:{os.getenv('BE_PORT')}/insert-match", data=TypeAdapter(Match).dump_json(match))
-    return 0
-
+def post_match(match: Match) -> requests.Response:
+    try:
+        res = requests.post(f"http://{os.getenv('BE_HOST')}:{os.getenv('BE_PORT')}/insert-match{"?debug=1" if os.getenv("DEBUG") else ""}", data=TypeAdapter(Match).dump_json(match))
+        return res.json()
+    except:
+        logger.error(f"Couldn't post match: {match.ranked_game_number} to BE")
+        return {"error": "Couldn't post match to BE"}
 def parse_log(dev: int) -> dict:
     logger.info("Getting DB")
     try:
@@ -152,7 +158,7 @@ def parse_log(dev: int) -> dict:
         else:
             db = MariaDBInterface(host=os.environ.get('DEV_DB_HOST'), port=os.environ.get('DEV_DB_PORT'), user=os.environ.get('DEV_DB_USER'), password=os.environ.get('DEV_DB_PASS'), database=os.environ.get('DEV_DB_SCHEMA'))
     except Exception as err:
-        logger.error(err)
+        logger.error(f"Couldn't setup db conn: {err}")
         return []
     logger.info("Getting log files")
     replay_files = sorted(utils.folders.get_files(RIVALS_LOG_FOLDER))
@@ -166,33 +172,44 @@ def parse_log(dev: int) -> dict:
         db.see_if_game_exists(666)
     except:
         logger.debug("No match 666 found")
+        return -1
     for match in data:
         if not db.see_if_game_exists(match["ranked_game_number"]):
-            new_match = Match(
-                match_date=match["match_date"].isoformat() if isinstance(match["match_date"], datetime) else match["match_date"],
-                elo_rank_new=match["elo_rank_new"],
-                elo_rank_old=match["elo_rank_old"],
-                elo_change=match["elo_change"],
-                ranked_game_number=match["ranked_game_number"],
-                total_wins=match["total_wins"],
-                win_streak_value=match["win_streak_value"],
-                opponent_elo=match["opponent_elo"],
-                game_1_char_pick=match["game_1_char_pick"],
-                game_1_opponent_pick=match["game_1_opponent_pick"],
-                game_1_stage=match["game_1_stage"],
-                game_1_winner=match["game_1_winner"],
-                game_2_char_pick=match["game_2_char_pick"],
-                game_2_opponent_pick=match["game_2_opponent_pick"],
-                game_2_stage=match["game_2_stage"],
-                game_2_winner=match["game_2_winner"],
-                game_3_char_pick=match["game_3_char_pick"],
-                game_3_opponent_pick=match["game_3_opponent_pick"],
-                game_3_stage=match["game_3_stage"],
-                game_3_winner=match["game_3_winner"]
-            )
-            # db.insert_match(match)
-            post_match(new_match)
-            logger.info(f"Inserting match: Game: {match["ranked_game_number"]} Rank: {match["elo_rank_new"]}")
+            res = None
+            try:
+                new_match = Match(
+                    match_date=match["match_date"].isoformat() if isinstance(match["match_date"], datetime) else match["match_date"],
+                    elo_rank_new=match["elo_rank_new"],
+                    elo_rank_old=match["elo_rank_old"],
+                    elo_change=match["elo_change"],
+                    match_win=1 if match["elo_change"] >= 0 else 0,
+                    ranked_game_number=match["ranked_game_number"],
+                    total_wins=match["total_wins"],
+                    win_streak_value=match["win_streak_value"],
+                    opponent_elo=match["opponent_elo"],
+                    game_1_char_pick=match["game_1_char_pick"],
+                    game_1_opponent_pick=match["game_1_opponent_pick"],
+                    game_1_stage=match["game_1_stage"],
+                    game_1_winner=match["game_1_winner"],
+                    game_2_char_pick=match["game_2_char_pick"],
+                    game_2_opponent_pick=match["game_2_opponent_pick"],
+                    game_2_stage=match["game_2_stage"],
+                    game_2_winner=match["game_2_winner"],
+                    game_3_char_pick=match["game_3_char_pick"],
+                    game_3_opponent_pick=match["game_3_opponent_pick"],
+                    game_3_stage=match["game_3_stage"],
+                    game_3_winner=match["game_3_winner"]
+                )
+                # db.insert_match(match)
+                if not dev:
+                    res = post_match(new_match)
+            except Exception as e:
+                logger.error(f"why did posting fail?? {e}|{res}")
+            try:
+                if not dev:
+                    logger.info(f"Inserting match: Game: {match["ranked_game_number"]} Rank: {match["elo_rank_new"]}, res: {res.content()}")
+            except Exception as e:
+                logger.error(f"Something bonked lol: {e}")
             count.append(match)
         else:
             logger.debug(f"Match exists: ID {match["ranked_game_number"]}")
