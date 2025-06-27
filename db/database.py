@@ -29,7 +29,7 @@ class MariaDBInterface:
         self.create_matches_table()
 
     def create_stages_table(self):
-        logger.debug("Creating stages table")
+        # logger.debug("Creating stages table")
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS stages (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -37,7 +37,7 @@ class MariaDBInterface:
                 display_name VARCHAR(45) NOT NULL
             )
         ''')
-        logger.debug("Created stages table")
+        # logger.debug("Created stages table")
         self.cursor.execute("SELECT count(id) FROM stages")
         count = int(self.cursor.fetchone()[0])
         if count < 1:
@@ -49,7 +49,7 @@ class MariaDBInterface:
                 (10, 'tempest', 'Tempest Peak')
             ''')
         self.conn.commit()
-        logger.debug("Loaded stages")
+        # logger.debug("Loaded stages")
 
     def create_seasons_table(self):
         logger.debug("Creating seasons")
@@ -84,7 +84,7 @@ class MariaDBInterface:
         self.conn.commit()
         logger.debug("Loaded seasons")
     def create_characters_table(self):
-        logger.debug("Creating characters table")
+        # logger.debug("Creating characters table")
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS characters (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -92,7 +92,7 @@ class MariaDBInterface:
                 display_name VARCHAR(45) NOT NULL
             )
         ''')
-        logger.debug("Created characters table")
+        # logger.debug("Created characters table")
         self.cursor.execute("SELECT count(id) FROM characters")
         count = int(self.cursor.fetchone()[0])
         if count < 1:
@@ -105,10 +105,10 @@ class MariaDBInterface:
                 (13, 'etalus', 'Etalus'), (14, 'absa', 'Absa')
             ''')
         self.conn.commit()
-        logger.debug("Loaded characters")
+        # logger.debug("Loaded characters")
     
     def create_matches_table(self):
-        logger.debug("Creating matches table")
+        # logger.debug("Creating matches table")
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS matches (
                 id INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
@@ -156,8 +156,8 @@ class MariaDBInterface:
             )
         ''')
         self.conn.commit()
-        logger.debug("Committing matches table")
-        logger.debug("Creating match_view")
+        # logger.debug("Committing matches table")
+        # logger.debug("Creating match_view")
         self.cursor.execute(''' 
         CREATE VIEW IF NOT EXISTS matches_vw AS
             SELECT 
@@ -259,7 +259,7 @@ class MariaDBInterface:
         self.conn.commit()
 
     def see_if_game_exists(self, game_no: int) -> bool:
-        logger.debug(f"Checking match {game_no} existance")
+        # logger.debug(f"Checking match {game_no} existance")
         self.cursor.execute("SELECT id FROM matches WHERE ranked_game_number = %s", (game_no,))
         try:
             found = self.cursor.fetchone()
