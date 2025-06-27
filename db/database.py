@@ -102,7 +102,7 @@ class MariaDBInterface:
                 (4, 'zetter', 'Zetterburn'), (5, 'wrastor', 'Wrastor'), (6, 'fleet', 'Fleet'),
                 (7, 'absa', 'Absa'), (8, 'oly', 'Olympia'), (9, 'maypul', 'Maypul'),
                 (10, 'kragg', 'Kragg'), (11, 'ranno', 'Ranno'), (12, 'orcane', 'Orcane'),
-                (13, 'etalus', 'Etalus')
+                (13, 'etalus', 'Etalus'), (14, 'absa', 'Absa')
             ''')
         self.conn.commit()
         logger.debug("Loaded characters")

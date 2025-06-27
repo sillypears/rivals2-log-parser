@@ -104,17 +104,17 @@ def extract_numbers(line: str, file: str = None) -> dict:
             "total_wins": int(ranks[4]),
             "win_streak_value": int(ranks[5]),
             "opponent_elo":  calc_elo.estimate_opponent_elo(my_elo=int(ranks[1]), elo_change=int(ranks[2]), result=win_loss),
-            "game_1_char_pick": "None",
-            "game_1_opponent_pick": "None",
-            "game_1_stage":  "None",
+            "game_1_char_pick": -1,
+            "game_1_opponent_pick": -1,
+            "game_1_stage":  -1,
             "game_1_winner":  -1,
-            "game_2_char_pick": "None",
-            "game_2_opponent_pick": "None",
-            "game_2_stage":  "None",
+            "game_2_char_pick": -1,
+            "game_2_opponent_pick": -1,
+            "game_2_stage":  -1,
             "game_2_winner":  -1,
-            "game_3_char_pick": "None",
-            "game_3_opponent_pick": "None",
-            "game_3_stage": "None",
+            "game_3_char_pick": -1,
+            "game_3_opponent_pick": -1,
+            "game_3_stage": -1,
             "game_3_winner": -1
         }
     except:
@@ -128,23 +128,24 @@ def extract_numbers(line: str, file: str = None) -> dict:
             "total_wins": -1,
             "win_streak_value": 0,
             "opponent_elo":  -1,
-            "game_1_char_pick": "None",
-            "game_1_opponent_pick": "None",
-            "game_1_stage":  "None",
+            "game_1_char_pick": -1,
+            "game_1_opponent_pick": -1,
+            "game_1_stage":  -1,
             "game_1_winner":  -1,
-            "game_2_char_pick": "None",
-            "game_2_opponent_pick": "None",
-            "game_2_stage":  "None",
+            "game_2_char_pick": -1,
+            "game_2_opponent_pick": -1,
+            "game_2_stage":  -1,
             "game_2_winner":  -1,
-            "game_3_char_pick": "None",
-            "game_3_opponent_pick": "None",
-            "game_3_stage": "None",
+            "game_3_char_pick": -1,
+            "game_3_opponent_pick": -1,
+            "game_3_stage": -1,
             "game_3_winner": -1
         }
     return result
 
 def post_match(match: Match) -> requests.Response:
     try:
+        logger.debug(f"Posting match: {match.ranked_game_number} to BE")
         res = requests.post(f"http://{os.getenv('BE_HOST')}:{os.getenv('BE_PORT')}/insert-match{"?debug=1" if os.getenv("DEBUG") else ""}", data=TypeAdapter(Match).dump_json(match))
         return res.json()
     except:
