@@ -4,7 +4,6 @@ import os, sys
 from dotenv import load_dotenv
 import utils.folders
 from typing import TextIO
-from pprint import pprint 
 import re
 from db.database import MariaDBInterface
 from datetime import datetime
@@ -90,8 +89,6 @@ def extract_numbers(line: str, file: str = None) -> dict:
             dt = None
     except:
         logging.error(f"Couldn't extract date: {match.group(1)} {match.group(2)}")
-    numbers = re.findall(r'-?\d+', line)
-    ranks = numbers[-6:]
     win_loss = 0 if int(ranks[2]) < 0 else 1
     try:
         result = {
@@ -162,7 +159,8 @@ def parse_log(dev: int, extra_data: dict = {}) -> dict:
         return []
     # logger.debug("Getting log files")
     replay_files = sorted(utils.folders.get_files(RIVALS_LOG_FOLDER))
-    replay_files.pop(replay_files.index("Rivals2.log"))
+    if "Rivals2.log" in replay_files:
+        replay_files.remove("Rivals2.log")
     logger.debug(f"Total files found: {len(replay_files)}")
 
     # logger.info("Parsing data from logs")
@@ -178,71 +176,68 @@ def parse_log(dev: int, extra_data: dict = {}) -> dict:
         if not db.see_if_game_exists(match["ranked_game_number"]):
             new_matches.append(match)
     for match in new_matches:
-        if not db.see_if_game_exists(match["ranked_game_number"]):
-            res = None
-            try:
-                if len(new_matches) == 1 and extra_data:
-                    new_match = Match(
-                        match_date=match["match_date"].isoformat() if isinstance(match["match_date"], datetime) else match["match_date"],
-                        elo_rank_new=match["elo_rank_new"],
-                        elo_rank_old=match["elo_rank_old"],
-                        elo_change=match["elo_change"],
-                        match_win=1 if match["elo_change"] >= 0 else 0,
-                        ranked_game_number=match["ranked_game_number"],
-                        total_wins=match["total_wins"],
-                        win_streak_value=match["win_streak_value"],
-                        opponent_elo=extra_data["opponent_elo"],
-                        game_1_char_pick=extra_data["game_1_char_pick"],
-                        game_1_opponent_pick=extra_data["game_1_opponent_pick"],
-                        game_1_stage=extra_data["game_1_stage"],
-                        game_1_winner=extra_data["game_1_winner"],
-                        game_2_char_pick=extra_data["game_2_char_pick"],
-                        game_2_opponent_pick=extra_data["game_2_opponent_pick"],
-                        game_2_stage=extra_data["game_2_stage"],
-                        game_2_winner=extra_data["game_2_winner"],
-                        game_3_char_pick=extra_data["game_3_char_pick"],
-                        game_3_opponent_pick=extra_data["game_3_opponent_pick"],
-                        game_3_stage=extra_data["game_3_stage"],
-                        game_3_winner=extra_data["game_3_winner"]
-                    )
-                else:
-                    new_match = Match(
-                        match_date=match["match_date"].isoformat() if isinstance(match["match_date"], datetime) else match["match_date"],
-                        elo_rank_new=match["elo_rank_new"],
-                        elo_rank_old=match["elo_rank_old"],
-                        elo_change=match["elo_change"],
-                        match_win=1 if match["elo_change"] >= 0 else 0,
-                        ranked_game_number=match["ranked_game_number"],
-                        total_wins=match["total_wins"],
-                        win_streak_value=match["win_streak_value"],
-                        opponent_elo=match["opponent_elo"],
-                        game_1_char_pick=match["game_1_char_pick"],
-                        game_1_opponent_pick=match["game_1_opponent_pick"],
-                        game_1_stage=match["game_1_stage"],
-                        game_1_winner=match["game_1_winner"],
-                        game_2_char_pick=match["game_2_char_pick"],
-                        game_2_opponent_pick=match["game_2_opponent_pick"],
-                        game_2_stage=match["game_2_stage"],
-                        game_2_winner=match["game_2_winner"],
-                        game_3_char_pick=match["game_3_char_pick"],
-                        game_3_opponent_pick=match["game_3_opponent_pick"],
-                        game_3_stage=match["game_3_stage"],
-                        game_3_winner=match["game_3_winner"]
-                    )
-                # db.insert_match(match)
-                if not dev:
-                    res = post_match(new_match)
-            except Exception as e:
-                logger.error(f"why did posting fail?? {e}|{res}")
-            print(res)
-            try:
-                if not dev:
-                    logger.info(f"Inserting match: Game: {match["ranked_game_number"]} Rank: {match["elo_rank_new"]}, res: {res.content()}")
-            except Exception as e:
-                logger.error(f"Something bonked lol: {e}")
-            count.append(match)
-        else:
-            logger.debug(f"Match exists: ID {match["ranked_game_number"]}")
+        res = None
+        try:
+            if len(new_matches) == 1 and extra_data:
+                new_match = Match(
+                    match_date=match["match_date"].isoformat() if isinstance(match["match_date"], datetime) else match["match_date"],
+                    elo_rank_new=match["elo_rank_new"],
+                    elo_rank_old=match["elo_rank_old"],
+                    elo_change=match["elo_change"],
+                    match_win=1 if match["elo_change"] >= 0 else 0,
+                    ranked_game_number=match["ranked_game_number"],
+                    total_wins=match["total_wins"],
+                    win_streak_value=match["win_streak_value"],
+                    opponent_elo=extra_data["opponent_elo"],
+                    game_1_char_pick=extra_data["game_1_char_pick"],
+                    game_1_opponent_pick=extra_data["game_1_opponent_pick"],
+                    game_1_stage=extra_data["game_1_stage"],
+                    game_1_winner=extra_data["game_1_winner"],
+                    game_2_char_pick=extra_data["game_2_char_pick"],
+                    game_2_opponent_pick=extra_data["game_2_opponent_pick"],
+                    game_2_stage=extra_data["game_2_stage"],
+                    game_2_winner=extra_data["game_2_winner"],
+                    game_3_char_pick=extra_data["game_3_char_pick"],
+                    game_3_opponent_pick=extra_data["game_3_opponent_pick"],
+                    game_3_stage=extra_data["game_3_stage"],
+                    game_3_winner=extra_data["game_3_winner"]
+                )
+            else:
+                new_match = Match(
+                    match_date=match["match_date"].isoformat() if isinstance(match["match_date"], datetime) else match["match_date"],
+                    elo_rank_new=match["elo_rank_new"],
+                    elo_rank_old=match["elo_rank_old"],
+                    elo_change=match["elo_change"],
+                    match_win=1 if match["elo_change"] >= 0 else 0,
+                    ranked_game_number=match["ranked_game_number"],
+                    total_wins=match["total_wins"],
+                    win_streak_value=match["win_streak_value"],
+                    opponent_elo=match["opponent_elo"],
+                    game_1_char_pick=match["game_1_char_pick"],
+                    game_1_opponent_pick=match["game_1_opponent_pick"],
+                    game_1_stage=match["game_1_stage"],
+                    game_1_winner=match["game_1_winner"],
+                    game_2_char_pick=match["game_2_char_pick"],
+                    game_2_opponent_pick=match["game_2_opponent_pick"],
+                    game_2_stage=match["game_2_stage"],
+                    game_2_winner=match["game_2_winner"],
+                    game_3_char_pick=match["game_3_char_pick"],
+                    game_3_opponent_pick=match["game_3_opponent_pick"],
+                    game_3_stage=match["game_3_stage"],
+                    game_3_winner=match["game_3_winner"]
+                )
+            # db.insert_match(match)
+            if not dev:
+                res = post_match(new_match)
+        except Exception as e:
+            logger.error(f"why did posting fail?? {e}|{res}")
+        try:
+            if not dev:
+                logger.info(f"Inserting match: Game: {match["ranked_game_number"]} Rank: {match["elo_rank_new"]}, res: {res}")
+        except Exception as e:
+            logger.error(f"Something bonked lol: {e}")
+        count.append(match)
+
     logger.info("Closing DB and exiting")
     db.close()
     logger.debug(count)
@@ -254,7 +249,7 @@ def truncate_db(dev: int) -> None:
         db.truncate_db(os.environ.get('DEV_DB_SCHEMA'), "matches")
     return 0
 def main():
-    parse_log()
+    parse_log(dev=int(os.environ.get("RIV2_DEBUG", 0)))
 
     return 0
 
