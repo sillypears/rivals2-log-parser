@@ -189,6 +189,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> dict:
                     total_wins=match["total_wins"],
                     win_streak_value=match["win_streak_value"],
                     opponent_elo=extra_data["opponent_elo"],
+                    opponent_estimated_elo=match["opponent_elo"],
                     game_1_char_pick=extra_data["game_1_char_pick"],
                     game_1_opponent_pick=extra_data["game_1_opponent_pick"],
                     game_1_stage=extra_data["game_1_stage"],
@@ -213,6 +214,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> dict:
                     total_wins=match["total_wins"],
                     win_streak_value=match["win_streak_value"],
                     opponent_elo=match["opponent_elo"],
+                    opponent_estimated_elo=match["opponent_elo"],
                     game_1_char_pick=match["game_1_char_pick"],
                     game_1_opponent_pick=match["game_1_opponent_pick"],
                     game_1_stage=match["game_1_stage"],
@@ -228,6 +230,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> dict:
                 )
             # db.insert_match(match)
             if not dev:
+                logger.debug(f"Posting match: {new_match.ranked_game_number} to BE")
                 res = post_match(new_match)
         except Exception as e:
             logger.error(f"why did posting fail?? {e}|{res}")
@@ -240,7 +243,6 @@ def parse_log(dev: int, extra_data: dict = {}) -> dict:
 
     logger.info("Closing DB and exiting")
     db.close()
-    logger.debug(count)
     return count
 
 def truncate_db(dev: int) -> None:
