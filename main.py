@@ -168,12 +168,28 @@ output_text.pack(fill="both", expand=True)
 bottom_frame = tk.Frame(root, padx=10, pady=10)
 bottom_frame.pack(fill="x")
 
+def adjust_elo(delta):
+    try:
+        current = opp_elo.get()
+    except tk.TclError:
+        current = 0
+    opp_elo.set(current + delta)
+
+def on_mousewheel(event: tk.Event):
+    # event.delta is positive (up) or negative (down)
+    shift = event.state & 0x0001
+    delta = 5 if shift else 1
+    direction = 1 if event.delta > 0 else -1
+    adjust_elo(delta * direction)
+
 tk.Label(bottom_frame, text="Opp ELO:").grid(row=0, column=0, sticky="e")
 opp_elo = tk.IntVar()
 opp_elo.set(950)  # Default elo value
-opp_elo_entry = tk.Spinbox(bottom_frame, from_=0, to_=3000, textvariable=opp_elo, width=10)
+opp_elo_entry = tk.Spinbox(bottom_frame, from_=0, to_=3000, increment=1, textvariable=opp_elo, width=10)
 opp_elo_entry.grid(row=0, column=1, padx=5)
 
+
+opp_elo_entry.bind("<MouseWheel>", on_mousewheel)  # Windows
 # chars
 opp_vars = []
 opp_dropdowns = []
