@@ -122,7 +122,7 @@ def run_parser(dev: int = 0):
             result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)
             
             output_text.insert(tk.END, "Log parsing complete.\n")
-            output_text.insert(tk.END, f"Added {len(result)} matches: {[",".join(str(x["elo_rank_new"]) for x in result)] if result else ""}\n")
+            output_text.insert(tk.END, f"Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x["elo_rank_new"]) for x in result)] if result else ""}\n")
             output_text.see(tk.END)
             if cbvar.get():
                 #log_parser.truncate_db(cbvar.get())
