@@ -141,7 +141,7 @@ def extract_numbers(line: str, file: str = None) -> dict:
         }
     return result
 
-def post_match(match: Match) -> requests.Response:
+def post_match(match: Match) -> requests.Response|dict:
     try:
         # logger.debug(f"Posting match: {match.ranked_game_number} to BE")
         res = requests.post(f"http://{os.getenv('BE_HOST')}:{os.getenv('BE_PORT')}/insert-match{"?debug=1" if os.getenv("DEBUG") else ""}", data=TypeAdapter(Match).dump_json(match))
@@ -150,7 +150,7 @@ def post_match(match: Match) -> requests.Response:
         logger.error(f"Couldn't post match: {match.ranked_game_number} to BE")
         return {"error": "Couldn't post match to BE"}
     
-def parse_log(dev: int, extra_data: dict = {}) -> dict:
+def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
     try:
         if not dev:
             db = MariaDBInterface(host=os.environ.get('DB_HOST'), port=os.environ.get('DB_PORT'), user=os.environ.get('DB_USER'), password=os.environ.get('DB_PASS'), database=os.environ.get('DB_SCHEMA'))
@@ -187,6 +187,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> dict:
                     elo_rank_old=match["elo_rank_old"],
                     elo_change=match["elo_change"],
                     match_win=1 if match["elo_change"] >= 0 else 0,
+                    match_forfeit=0,
                     ranked_game_number=match["ranked_game_number"],
                     total_wins=match["total_wins"],
                     win_streak_value=match["win_streak_value"],
@@ -213,6 +214,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> dict:
                     elo_rank_old=match["elo_rank_old"],
                     elo_change=match["elo_change"],
                     match_win=1 if match["elo_change"] >= 0 else 0,
+                    match_forfeit=0,
                     ranked_game_number=match["ranked_game_number"],
                     total_wins=match["total_wins"],
                     win_streak_value=match["win_streak_value"],

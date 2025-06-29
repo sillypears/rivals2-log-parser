@@ -117,6 +117,7 @@ class MariaDBInterface:
                 `elo_rank_old` int(11) NOT NULL DEFAULT -1,
                 `elo_change` int(11) NOT NULL DEFAULT 0,
                 `match_win` tinyint(4) NOT NULL DEFAULT 0,
+                `match_forfeit` tinyint(2) NOT NULL DEFAULT 0,
                 `ranked_game_number` int(11) NOT NULL DEFAULT -1,
                 `total_wins` int(11) NOT NULL DEFAULT -1,
                 `win_streak_value` int(11) NOT NULL DEFAULT -1,
@@ -170,6 +171,7 @@ class MariaDBInterface:
                 `m`.`elo_rank_old` AS `elo_rank_old`,
                 `m`.`elo_change` AS `elo_change`,
                 `m`.`match_win` AS `match_win`,
+                `m`.`match_forfeit` AS `match_forfeit`,
                 `m`.`ranked_game_number` AS `ranked_game_number`,
                 `m`.`total_wins` AS `total_wins`,
                 `m`.`win_streak_value` AS `win_streak_value`,
@@ -223,6 +225,7 @@ class MariaDBInterface:
                 win_streak_value,
                 opponent_elo,
                 match_win,
+                match_forfeit,
                 game_1_char_pick,
                 game_1_opponent_pick,
                 game_1_stage,
@@ -235,7 +238,7 @@ class MariaDBInterface:
                 game_3_opponent_pick,
                 game_3_stage,
                 game_3_winner
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
             match_data["match_date"].isoformat() if isinstance(match_data["match_date"], datetime) else match_data["match_date"],
             match_data["elo_rank_new"],
@@ -246,6 +249,7 @@ class MariaDBInterface:
             match_data["win_streak_value"],
             match_data["opponent_elo"],
             1 if match_data["elo_change"] > 0 else 0,
+            0,
             match_data["game_1_char_pick"],
             match_data["game_1_opponent_pick"],
             match_data["game_1_stage"],
