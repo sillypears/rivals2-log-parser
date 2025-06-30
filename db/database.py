@@ -81,6 +81,14 @@ class MariaDBInterface:
                     display_name
                 ) VALUES ("2025-03-04T00:00:00", "2025-07:01T21:59:59", "spring_2025", "Spring 2025")
             ''', ())
+            self.cursor.execute('''
+                INSERT INTO seasons (
+                    start_date, 
+                    end_date,
+                    short_name,
+                    display_name
+                ) VALUES ("2025-07-01T22:00:00", "2025-10-01T21:59:59", "summer_2025", "Summer 2025")
+            ''', ())
         self.conn.commit()
         logger.debug("Loaded seasons")
     def create_characters_table(self):
