@@ -87,7 +87,7 @@ class MariaDBInterface:
                     end_date,
                     short_name,
                     display_name
-                ) VALUES ("2025-07-01T22:00:00", "2025-10-01T21:59:59", "summer_2025", "Summer 2025")
+                ) VALUES ("2025-07-01T22:00:00", "2025-08-05T21:59:59", "summer_2025", "Summer 2025")
             ''', ())
         self.conn.commit()
         logger.debug("Loaded seasons")
