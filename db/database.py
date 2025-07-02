@@ -47,10 +47,8 @@ class MariaDBInterface:
                 (10, 'tempest', 'Tempest Peak')
             ''')
         self.conn.commit()
-        # logger.debug("Loaded stages")
 
     def create_seasons_table(self):
-        logger.debug("Creating seasons")
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS seasons (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -88,7 +86,6 @@ class MariaDBInterface:
                 ) VALUES ("2025-07-01T22:00:00", "2025-08-05T21:59:59", "summer_2025", "Summer 2025")
             ''', ())
         self.conn.commit()
-        logger.debug("Loaded seasons")
     def create_characters_table(self):
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS characters (
