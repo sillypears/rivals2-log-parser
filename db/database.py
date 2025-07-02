@@ -29,7 +29,6 @@ class MariaDBInterface:
         self.create_matches_table()
 
     def create_stages_table(self):
-        # logger.debug("Creating stages table")
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS stages (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -37,7 +36,6 @@ class MariaDBInterface:
                 display_name VARCHAR(45) NOT NULL
             )
         ''')
-        # logger.debug("Created stages table")
         self.cursor.execute("SELECT count(id) FROM stages")
         count = int(self.cursor.fetchone()[0])
         if count < 1:
@@ -92,7 +90,6 @@ class MariaDBInterface:
         self.conn.commit()
         logger.debug("Loaded seasons")
     def create_characters_table(self):
-        # logger.debug("Creating characters table")
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS characters (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -100,7 +97,6 @@ class MariaDBInterface:
                 display_name VARCHAR(45) NOT NULL
             )
         ''')
-        # logger.debug("Created characters table")
         self.cursor.execute("SELECT count(id) FROM characters")
         count = int(self.cursor.fetchone()[0])
         if count < 1:
@@ -112,11 +108,8 @@ class MariaDBInterface:
                 (10, 'kragg', 'Kragg'), (11, 'ranno', 'Ranno'), (12, 'orcane', 'Orcane'),
                 (13, 'etalus', 'Etalus'), (14, 'absa', 'Absa')
             ''')
-        self.conn.commit()
-        # logger.debug("Loaded characters")
-    
+        self.conn.commit()    
     def create_matches_table(self):
-        # logger.debug("Creating matches table")
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS matches (
                 `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -168,8 +161,6 @@ class MariaDBInterface:
                             )
         ''')
         self.conn.commit()
-        # logger.debug("Committing matches table")
-        # logger.debug("Creating match_view")
         self.cursor.execute(''' 
         CREATE VIEW IF NOT EXISTS matches_vw AS
             SELECT 
@@ -218,7 +209,6 @@ class MariaDBInterface:
                 LEFT JOIN `characters` `co3` ON (`m`.`game_3_opponent_pick` = `co3`.`id`))
             ORDER BY `m`.`ranked_game_number` DESC
         ''')
-        logger.debug("Committing matches table and view")
         self.conn.commit()
 
     def insert_match(self, match_data: dict):
@@ -273,13 +263,13 @@ class MariaDBInterface:
         ))
         self.conn.commit()
 
-    def see_if_game_exists(self, game_no: int) -> bool:
+    def see_if_game_exists(self, game_no: int, date: datetime) -> bool:
         # logger.debug(f"Checking match {game_no} existance")
-        self.cursor.execute("SELECT id FROM matches WHERE ranked_game_number = %s", (game_no,))
         try:
+            self.cursor.execute("SELECT m.id FROM matches_vw m LEFT JOIN seasons s ON m.season_id = s.id WHERE ranked_game_number = %s AND %s BETWEEN s.start_date AND s.end_date ", (game_no, date,))
             found = self.cursor.fetchone()
-        except:
-            found = None
+        except Exception as e:
+                found = None
         return found is not None
 
     def truncate_db(self, db_name: str, table: str):

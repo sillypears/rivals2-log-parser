@@ -169,13 +169,12 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
     data = find_rank_in_logs(replay_files)
     count = []
     try:
-        db.see_if_game_exists(666)
+        db.see_if_game_exists(666, datetime.now())
     except:
-        # logger.debug("No match 666 found")
         return -1
     new_matches = []
     for match in data:
-        if not db.see_if_game_exists(match["ranked_game_number"]):
+        if not db.see_if_game_exists(match["ranked_game_number"], match["match_date"]):
             new_matches.append(match)
     for match in new_matches:
         res = None

@@ -7,7 +7,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 import requests
-
+import traceback
 import log_parser
 
 load_dotenv()
@@ -120,7 +120,11 @@ def run_parser(dev: int = 0):
                 }
             
             result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)
-            
+            if result == -1:
+                output_text.insert(tk.END, "No matches found or no new matches to add.\n")
+                output_text.see(tk.END)
+                run_button.config(state="normal")
+                return
             output_text.insert(tk.END, "Log parsing complete.\n")
             output_text.insert(tk.END, f"Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x["elo_rank_new"]) for x in result)] if result else ""}\n")
             output_text.see(tk.END)
@@ -130,7 +134,8 @@ def run_parser(dev: int = 0):
                 output_text.see(tk.END)
         except Exception as e:
             output_text.insert(tk.END, f"Error: {e}\n")
-            messagebox.showerror("Error", str(e))
+            # messagebox.showerror("Error", str(e))
+            traceback.print_exc()
         finally:
             run_button.config(state="normal")
 
