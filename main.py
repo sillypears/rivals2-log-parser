@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 from tkinter import messagebox, scrolledtext
 import threading
 import sys
@@ -45,27 +46,39 @@ def setup_logging():
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
 
-def update_option_menu(option_menu, var, options):
-    menu = option_menu["menu"]
+def update_option_menu(option_menu: tk.OptionMenu, var, options):
+    menu: tk.Menu = option_menu["menu"]
     menu.delete(0, "end")
     for opt in options:
-        menu.add_command(label=opt, command=lambda v=opt: var.set(v))
+        if "sepior" in opt:
+            menu.add_separator()
+        else:
+            menu.add_command(label=opt, command=lambda v=opt: var.set(v))
     if options:
         var.set(options[0])
 
-def populate_dropdowns(opp_dropdowns: list, stage_dropdowns: list):
+def populate_dropdowns(opp_dropdowns: list[ttk.OptionMenu], stage_dropdowns: list):
     try:
         response = requests.get("http://192.168.1.30:8005/characters", timeout=5)
         response.raise_for_status()
         characters_json = response.json()
         for char in characters_json:
             characters[char["display_name"]] = char["id"]
+            if char["id"] == -1: characters["sepior1"] = -1
         character_names = list(characters.keys())
 
         response = requests.get("http://192.168.1.30:8005/stages", timeout=5)
         response.raise_for_status()
         stage_json = response.json()
+        counter = -1
         for stage in stage_json:
+            if counter == -1 and stage["counter_pick"] == 0:
+                stages["sepior1"] = -1
+            if stage["counter_pick"] == 0 :
+                counter = 0
+            if counter == 0 and stage["counter_pick"] == 1:
+                stages["sepior2"] = -1
+                counter = 1
             stages[stage["display_name"]] = stage["id"]
         stage_names = list(stages.keys())
 
@@ -156,14 +169,14 @@ frame.pack(fill="both", expand=True)
 topframe = tk.Frame(frame)
 topframe.pack(fill="both", expand=True)
 
-run_button = tk.Button(topframe, text="Run Log Parser", command=run_parser)
+run_button = ttk.Button(topframe, text="Run Log Parser", command=run_parser)
 run_button.pack(side=tk.LEFT)
 
-spacer = tk.Label(topframe)
+spacer = ttk.Label(topframe)
 spacer.pack(side=tk.LEFT, expand=True)
 
 cbvar = tk.IntVar()
-run_switch = tk.Checkbutton(topframe, text="Debug",  variable=cbvar)
+run_switch = ttk.Checkbutton(topframe, text="Debug",  variable=cbvar)
 run_switch.pack(side=tk.RIGHT)
 
 output_text = scrolledtext.ScrolledText(frame, width=80, height=20)
@@ -187,31 +200,31 @@ def on_mousewheel(event: tk.Event):
     direction = 1 if event.delta > 0 else -1
     adjust_elo(delta * direction)
 
-tk.Label(bottom_frame, text="Opp ELO:").grid(row=0, column=0, sticky="e")
+ttk.Label(bottom_frame, text="Opp ELO:").grid(row=0, column=0, sticky="e")
 opp_elo = tk.IntVar()
 opp_elo.set(950)  # Default elo value
-opp_elo_entry = tk.Spinbox(bottom_frame, from_=0, to_=3000, increment=1, textvariable=opp_elo, width=10)
+opp_elo_entry = ttk.Spinbox(bottom_frame, from_=0, to_=3000, increment=1, textvariable=opp_elo, width=10)
 opp_elo_entry.grid(row=0, column=1, padx=5)
 
 
 opp_elo_entry.bind("<MouseWheel>", on_mousewheel)  # Windows
 # chars
 opp_vars = []
-opp_dropdowns = []
+opp_dropdowns: list[ttk.OptionMenu] = []
 stage_vars = []
 stage_dropdowns = []
 winner_vars = []
 
 for x in range(3):
-    tk.Label(bottom_frame, text=f"Game {x+1}").grid(row=x+2, column=0, sticky="e")
+    ttk.Label(bottom_frame, text=f"Game {x+1}").grid(row=x+2, column=0, sticky="e")
 
     opp_var = tk.StringVar()
     stage_var = tk.StringVar()
     winner_var = tk.BooleanVar()
 
-    opp_dropdown = tk.OptionMenu(bottom_frame, opp_var, "Loading...")
-    stage_dropdown = tk.OptionMenu(bottom_frame, stage_var, "Loading...")
-    winner_checkbox = tk.Checkbutton(bottom_frame, text="OppWins", variable=winner_var)
+    opp_dropdown = ttk.OptionMenu(bottom_frame, opp_var, "Loading...")
+    stage_dropdown = ttk.OptionMenu(bottom_frame, stage_var, "Loading...")
+    winner_checkbox = ttk.Checkbutton(bottom_frame, text="OppWins", variable=winner_var)
 
     opp_dropdown.grid(row=x+2, column=1, padx=5, sticky="w")
     stage_dropdown.grid(row=x+2, column=2, padx=5, sticky="w")
@@ -231,10 +244,13 @@ def clear_matchup_fields():
         x.set("")
     for x in winner_vars:
         x.set(False)
+
     opp_elo.set(950) 
-clear_button = tk.Button(bottom_frame, text="Clear", command=clear_matchup_fields)
+clear_button = ttk.Button(bottom_frame, text="Clear", command=clear_matchup_fields)
 clear_button.grid(row=0, column=10, padx=10)
 
+style = ttk.Style()
+style.theme_use(themename="classic")
 populate_dropdowns(opp_dropdowns, stage_dropdowns)
 
 root.mainloop()
