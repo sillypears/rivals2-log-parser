@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter.ttk import *
 from tkinter import messagebox, scrolledtext
 import threading
 import sys
@@ -57,7 +57,7 @@ def update_option_menu(option_menu: tk.OptionMenu, var, options):
     if options:
         var.set(options[0])
 
-def populate_dropdowns(opp_dropdowns: list[ttk.OptionMenu], stage_dropdowns: list):
+def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list):
     try:
         response = requests.get("http://192.168.1.30:8005/characters", timeout=5)
         response.raise_for_status()
@@ -163,27 +163,27 @@ root = tk.Tk()
 root.title("Rivals 2 Log Parser")
 root.resizable(0,0)
 
-frame = tk.Frame(root, padx=10, pady=10)
+frame = Frame(root, padding=10)
 frame.pack(fill="both", expand=True)
 
-topframe = tk.Frame(frame)
+topframe = Frame(frame)
 topframe.pack(fill="both", expand=True)
 
-run_button = ttk.Button(topframe, text="Run Log Parser", command=run_parser)
+run_button = Button(topframe, text="Run Log Parser", command=run_parser)
 run_button.pack(side=tk.LEFT)
 
-spacer = ttk.Label(topframe)
+spacer = Label(topframe)
 spacer.pack(side=tk.LEFT, expand=True)
 
 cbvar = tk.IntVar()
-run_switch = ttk.Checkbutton(topframe, text="Debug",  variable=cbvar)
+run_switch = Checkbutton(topframe, text="Debug",  variable=cbvar)
 run_switch.pack(side=tk.RIGHT)
 
 output_text = scrolledtext.ScrolledText(frame, width=80, height=20)
 output_text.pack(fill="both", expand=True)
 
 # bottom
-bottom_frame = tk.Frame(root, padx=10, pady=10)
+bottom_frame = Frame(root, padding=10)
 bottom_frame.pack(fill="x")
 
 def adjust_elo(delta):
@@ -200,31 +200,31 @@ def on_mousewheel(event: tk.Event):
     direction = 1 if event.delta > 0 else -1
     adjust_elo(delta * direction)
 
-ttk.Label(bottom_frame, text="Opp ELO:").grid(row=0, column=0, sticky="e")
+Label(bottom_frame, text="Opp ELO:").grid(row=0, column=0, sticky="e")
 opp_elo = tk.IntVar()
 opp_elo.set(950)  # Default elo value
-opp_elo_entry = ttk.Spinbox(bottom_frame, from_=0, to_=3000, increment=1, textvariable=opp_elo, width=10)
+opp_elo_entry = Spinbox(bottom_frame, from_=0, to_=3000, increment=1, textvariable=opp_elo, width=10)
 opp_elo_entry.grid(row=0, column=1, padx=5)
 
 
 opp_elo_entry.bind("<MouseWheel>", on_mousewheel)  # Windows
 # chars
 opp_vars = []
-opp_dropdowns: list[ttk.OptionMenu] = []
+opp_dropdowns: list[OptionMenu] = []
 stage_vars = []
 stage_dropdowns = []
 winner_vars = []
 
 for x in range(3):
-    ttk.Label(bottom_frame, text=f"Game {x+1}").grid(row=x+2, column=0, sticky="e")
+    Label(bottom_frame, text=f"Game {x+1}").grid(row=x+2, column=0, sticky="e")
 
     opp_var = tk.StringVar()
     stage_var = tk.StringVar()
     winner_var = tk.BooleanVar()
 
-    opp_dropdown = ttk.OptionMenu(bottom_frame, opp_var, "Loading...")
-    stage_dropdown = ttk.OptionMenu(bottom_frame, stage_var, "Loading...")
-    winner_checkbox = ttk.Checkbutton(bottom_frame, text="OppWins", variable=winner_var)
+    opp_dropdown = OptionMenu(bottom_frame, opp_var, "Loading...")
+    stage_dropdown = OptionMenu(bottom_frame, stage_var, "Loading...")
+    winner_checkbox = Checkbutton(bottom_frame, text="OppWins", variable=winner_var)
 
     opp_dropdown.grid(row=x+2, column=1, padx=5, sticky="w")
     stage_dropdown.grid(row=x+2, column=2, padx=5, sticky="w")
@@ -246,10 +246,10 @@ def clear_matchup_fields():
         x.set(False)
 
     opp_elo.set(950) 
-clear_button = ttk.Button(bottom_frame, text="Clear", command=clear_matchup_fields)
+clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields)
 clear_button.grid(row=0, column=10, padx=10)
 
-style = ttk.Style()
+style = Style()
 style.theme_use(themename="classic")
 populate_dropdowns(opp_dropdowns, stage_dropdowns)
 
