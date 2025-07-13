@@ -233,6 +233,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                     game_3_stage=match["game_3_stage"],
                     game_3_winner=match["game_3_winner"]
                 )
+            
             # db.insert_match(match)
             if not dev:
                 logger.debug(f"Posting match: {new_match.ranked_game_number} to BE")

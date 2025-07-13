@@ -11,7 +11,7 @@ class MariaDBInterface:
     def __init__(self, host, port, user, password, database):
         logger.debug(f"Creating DB interface for {host}:{port}")
         try:
-            self.conn = mysql.connector.connect(
+            self.conn = mysql.connector.connect( # type: ignore
                 host=host,
                 port=int(port),
                 user=user,

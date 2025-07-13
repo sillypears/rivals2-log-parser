@@ -3,6 +3,7 @@ import os, sys
 from dotenv import load_dotenv
 import logging
 from logging.handlers import RotatingFileHandler
+from datetime import datetime 
 
 load_dotenv()
 logger = logging.getLogger()
@@ -37,7 +38,7 @@ def setup_logging():
 
 def main():
     db = MariaDBInterface(host=os.environ.get('DB_HOST'), port=os.environ.get('DB_PORT'), user=os.environ.get('DB_USER'), password=os.environ.get('DB_PASS'), database=os.environ.get('DB_SCHEMA'))
-    db.see_if_game_exists(666)
+    db.see_if_game_exists(666, datetime.now())
 
 if __name__ == "__main__":
     setup_logging()
