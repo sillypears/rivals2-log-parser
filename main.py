@@ -16,6 +16,7 @@ logger = logging.getLogger()
 
 characters = {}
 stages = {}
+moves = {}
 
 def setup_logging():
     os.makedirs(os.environ.get("LOG_DIR"), exist_ok=True)
@@ -46,7 +47,7 @@ def setup_logging():
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
 
-def update_option_menu(option_menu: tk.OptionMenu, var, options):
+def update_option_menu(option_menu: OptionMenu, var, options):
     menu: tk.Menu = option_menu["menu"]
     menu.delete(0, "end")
     for opt in options:
@@ -72,7 +73,6 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list):
         response.raise_for_status()
         stage_json = response.json()
         counter = -1
-        print(opp_dropdown)
         for stage in stage_json:
             if counter == -1 and stage["counter_pick"] == -1:
                 stages1[stage["display_name"]] = stage["id"]
@@ -107,6 +107,21 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list):
         output_text.insert(tk.END, f"Error updating character data: {e}\n")
         output_text.see(tk.END)
 
+def populate_movelist(move_list: OptionMenu):
+    try:
+        response = requests.get("http://192.168.1.30:8005/movelist", timeout=5)
+        response.raise_for_status()
+        moves_json = response.json()
+        for move in moves_json:
+            moves[move["display_name"]] = move["id"]
+            if move["id"] == -1: move["sepior1"] = -1
+
+
+        move_names = list(moves.keys())
+    except Exception as e:
+        logger.error(f"Movelist failed to generate: {e}")
+    update_option_menu(move_list, move_var, move_names)
+
 def are_required_dropdowns_filled():
     return all([
         opp_vars[0].get().strip() != "N/A",
@@ -138,7 +153,9 @@ def run_parser(dev: int = 0):
                     "game_1_winner": 2 if winner_vars[0].get() else 1,
                     "game_2_winner": 2 if winner_vars[1].get() else 1,
                     "game_3_winner": 2 if winner_vars[2].get() else 1,
-                    "opponent_elo": int(opp_elo.get())
+                    "opponent_elo": int(opp_elo.get()),
+                    "final_move_id": int(moves.get(move_var.get(), -1))
+
                 }
             logger.debug(extra_data)
             result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)
@@ -261,12 +278,19 @@ def clear_matchup_fields():
     for x in winner_vars:
         x.set(False)
 
-    opp_elo.set(950) 
+    opp_elo.set(950)
+    move_var.set("N/A")
+    
 clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields)
-clear_button.grid(row=0, column=10, padx=10)
+clear_button.grid(row=0, column=12, padx=10)
+
+move_var = tk.StringVar()
+move_list = OptionMenu(bottom_frame, move_var, "Loading...")
+move_list.grid(row=0, column=10, padx=10)
 
 style = Style()
 style.theme_use(themename="classic")
 populate_dropdowns(opp_dropdowns, stage_dropdowns)
+populate_movelist(move_list)
 
 root.mainloop()
