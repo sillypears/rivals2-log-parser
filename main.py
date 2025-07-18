@@ -58,22 +58,27 @@ def update_option_menu(option_menu: OptionMenu, var, options):
     if options:
         var.set(options[0])
 
-def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list):
+def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[OptionMenu], move_dropdowns: list[OptionMenu]):
     try:
         stages1 = {}
         response = requests.get("http://192.168.1.30:8005/characters", timeout=5)
         response.raise_for_status()
         characters_json = response.json()
-        for char in characters_json:
+        for char in characters_json['data']:
             characters[char["display_name"]] = char["id"]
             if char["id"] == -1: characters["sepior1"] = -1
         character_names = list(characters.keys())
+    except Exception as e:
+        output_text.insert(tk.END, f"Error fetching character data: {e}\n")
+        output_text.see(tk.END)
+        logger.error(f"Charlist failed to generate: {e}")
 
+    try:
         response = requests.get("http://192.168.1.30:8005/stages", timeout=5)
         response.raise_for_status()
         stage_json = response.json()
         counter = -1
-        for stage in stage_json:
+        for stage in stage_json['data']:
             if counter == -1 and stage["counter_pick"] == -1:
                 stages1[stage["display_name"]] = stage["id"]
             if counter == -1 and stage["counter_pick"] == 0:
@@ -87,13 +92,26 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list):
                 counter = 1
             stages[stage["display_name"]] = stage["id"]
         stage_names = list(stages.keys())
-
-        output_text.insert(tk.END, f"Fetched {len(character_names)} characters and {len(stage_names)} stages.\n")
-        output_text.see(tk.END)
-
     except Exception as e:
         output_text.insert(tk.END, f"Error fetching character data: {e}\n")
         output_text.see(tk.END)
+        logger.error(f"Stagelist failed to generate: {e}")
+
+    try:
+        response = requests.get("http://192.168.1.30:8005/movelist", timeout=5)
+        response.raise_for_status()
+        moves_json = response.json()
+        for move in moves_json['data']:
+            moves[move["display_name"]] = move["id"]
+            if move["id"] == -1: move["sepior1"] = -1
+        move_names = list(moves.keys())
+    except Exception as e:
+        output_text.insert(tk.END, f"Error fetching character data: {e}\n")
+        output_text.see(tk.END)
+        logger.error(f"Movelist failed to generate: {e}")
+
+    output_text.insert(tk.END, f"Fetched {len(character_names)} characters, {len(stage_names)} stages and {len(move_names)} moves.\n")
+    output_text.see(tk.END)
 
     try:            
         for x in range(3):
@@ -102,6 +120,8 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list):
                 update_option_menu(stage_dropdowns[x], stage_vars[x], list(stages1.keys()))
             else:
                 update_option_menu(stage_dropdowns[x], stage_vars[x], stage_names)
+            update_option_menu(move_dropdowns[x], move_vars[x], move_names)
+
 
     except Exception as e:
         output_text.insert(tk.END, f"Error updating character data: {e}\n")
@@ -112,7 +132,7 @@ def populate_movelist(move_list: OptionMenu):
         response = requests.get("http://192.168.1.30:8005/movelist", timeout=5)
         response.raise_for_status()
         moves_json = response.json()
-        for move in moves_json:
+        for move in moves_json['data']:
             moves[move["display_name"]] = move["id"]
             if move["id"] == -1: move["sepior1"] = -1
 
@@ -150,12 +170,11 @@ def run_parser(dev: int = 0):
                     "game_2_stage": int(stages.get(stage_vars[1].get(), -1)),
                     "game_3_opponent_pick": int(characters.get(opp_vars[2].get(), -1)),
                     "game_3_stage": int(stages.get(stage_vars[2].get(), -1)),
-                    "game_1_winner": 2 if winner_vars[0].get() else 1,
-                    "game_2_winner": 2 if winner_vars[1].get() else 1,
-                    "game_3_winner": 2 if winner_vars[2].get() else 1,
+                    "game_1_winner": 2 if winner_vars[0].get() else (1 if characters.get(opp_vars[0].get()) else -1),
+                    "game_2_winner": 2 if winner_vars[1].get() else (1 if characters.get(opp_vars[1].get()) else -1),
+                    "game_3_winner": 2 if winner_vars[2].get() else (1 if characters.get(opp_vars[2].get()) else -1),
                     "opponent_elo": int(opp_elo.get()),
-                    "final_move_id": int(moves.get(move_var.get(), -1))
-
+                    "final_move_id": int(moves.get(final_move_var.get(), -1))
                 }
             logger.debug(extra_data)
             result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)
@@ -239,11 +258,19 @@ opp_elo_entry.bind("<MouseWheel>", on_mousewheel)  # Windows
 opp_vars = []
 opp_dropdowns: list[OptionMenu] = []
 stage_vars = []
-stage_dropdowns = []
+stage_dropdowns: list[OptionMenu] = []
 winner_vars = []
+move_dropdowns: list[OptionMenu] = []
+move_vars = []
 
 def sync_games(*args):
     opp_vars[1].set(opp_vars[0].get())
+
+Label(bottom_frame, text=f"").grid(row=1, column=0, sticky='n')
+Label(bottom_frame, text=f"OppChar").grid(row=1, column=1, sticky='n')
+Label(bottom_frame, text=f"Stage").grid(row=1, column=2, sticky='n')
+Label(bottom_frame, text=f"").grid(row=1, column=4, sticky='n')
+Label(bottom_frame, text=f"FinalMove").grid(row=1, column=3, sticky='n')
 
 for x in range(3):
     Label(bottom_frame, text=f"Game {x+1}").grid(row=x+2, column=0, sticky="e")
@@ -251,23 +278,28 @@ for x in range(3):
     opp_var = tk.StringVar()
     stage_var = tk.StringVar()
     winner_var = tk.BooleanVar()
+    move_var = tk.StringVar()
 
     opp_dropdown = OptionMenu(bottom_frame, opp_var, "Loading...")
     if x == 0:
         opp_var.trace_add("write", sync_games)
     stage_dropdown = OptionMenu(bottom_frame, stage_var, "Loading...")
     winner_checkbox = Checkbutton(bottom_frame, text="OppWins", variable=winner_var)
-
+    move_dropdown = OptionMenu(bottom_frame, move_var, "Loading...")
+    
     opp_dropdown.grid(row=x+2, column=1, padx=5, sticky="w")
     stage_dropdown.grid(row=x+2, column=2, padx=5, sticky="w")
-    winner_checkbox.grid(row=x+2, column=3, padx=5, sticky="w")
-    
+    winner_checkbox.grid(row=x+2, column=4, padx=5, sticky="w")
+    move_dropdown.grid(row=x+2, column=3, padx=5, sticky="w")
+
     opp_vars.append(opp_var)
     stage_vars.append(stage_var)
     winner_vars.append(winner_var)
+    move_vars.append(move_var)
 
     opp_dropdowns.append(opp_dropdown)
     stage_dropdowns.append(stage_dropdown)
+    move_dropdowns.append(move_dropdown)
 
 def clear_matchup_fields():
     # for x in range(len(opp_vars)
@@ -277,20 +309,16 @@ def clear_matchup_fields():
         x.set("N/A")
     for x in winner_vars:
         x.set(False)
+    for x in move_vars:
+        x.set("N/A")
 
     opp_elo.set(950)
-    move_var.set("N/A")
-    
-clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields)
-clear_button.grid(row=0, column=12, padx=10)
 
-move_var = tk.StringVar()
-move_list = OptionMenu(bottom_frame, move_var, "Loading...")
-move_list.grid(row=0, column=10, padx=10)
+clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields)
+clear_button.grid(row=0, column=16, padx=10, sticky='e')
 
 style = Style()
 style.theme_use(themename="classic")
-populate_dropdowns(opp_dropdowns, stage_dropdowns)
-populate_movelist(move_list)
+populate_dropdowns(opp_dropdowns, stage_dropdowns, move_dropdowns)
 
 root.mainloop()

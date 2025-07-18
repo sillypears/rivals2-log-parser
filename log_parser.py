@@ -204,7 +204,8 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                     game_3_char_pick=extra_data["game_3_char_pick"],
                     game_3_opponent_pick=extra_data["game_3_opponent_pick"],
                     game_3_stage=extra_data["game_3_stage"],
-                    game_3_winner=extra_data["game_3_winner"]
+                    game_3_winner=extra_data["game_3_winner"],
+                    final_move_id=extra_data["final_move_id"]
                 )
             else:
                 new_match = Match(
@@ -231,7 +232,9 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                     game_3_char_pick=match["game_3_char_pick"],
                     game_3_opponent_pick=match["game_3_opponent_pick"],
                     game_3_stage=match["game_3_stage"],
-                    game_3_winner=match["game_3_winner"]
+                    game_3_winner=match["game_3_winner"],
+                    final_move_id=match["final_move_id"]
+
                 )
             
             # db.insert_match(match)

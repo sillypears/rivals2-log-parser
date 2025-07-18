@@ -200,3 +200,4 @@ Lib/*
 bin/*
 *.sqlite
 dump.sql
+.vscode/settings.json
