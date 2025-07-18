@@ -160,6 +160,10 @@ def run_parser(dev: int = 0):
             log_parser.setup_logging()
             extra_data = {}
             if are_required_dropdowns_filled():
+                final_move_id = -1
+                for var in winner_vars:
+                    if var.get() > 0:
+                        final_move_id = int(var.get())
                 extra_data = {
                     "game_1_char_pick": int(characters.get("Loxodont", -1)),
                     "game_2_char_pick": int(characters.get("Loxodont", -1)),
@@ -174,7 +178,7 @@ def run_parser(dev: int = 0):
                     "game_2_winner": 2 if winner_vars[1].get() else (1 if characters.get(opp_vars[1].get()) else -1),
                     "game_3_winner": 2 if winner_vars[2].get() else (1 if characters.get(opp_vars[2].get()) else -1),
                     "opponent_elo": int(opp_elo.get()),
-                    "final_move_id": int(moves.get(final_move_var.get(), -1))
+                    "final_move_id": final_move_id
                 }
             logger.debug(extra_data)
             result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)
@@ -184,7 +188,7 @@ def run_parser(dev: int = 0):
                 run_button.config(state="normal")
                 return
             output_text.insert(tk.END, "Log parsing complete.\n")
-            output_text.insert(tk.END, f"Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x["elo_rank_new"]) for x in result)] if result else ""}\n")
+            output_text.insert(tk.END, f"Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x["elo_rank_new"]) for x in result)] if result else ""}\n") # type: ignore
             output_text.see(tk.END)
             if cbvar.get():
                 #log_parser.truncate_db(cbvar.get())
@@ -206,7 +210,7 @@ setup_logging()
 
 root = tk.Tk()
 root.title("Rivals 2 Log Parser")
-root.resizable(0,0)
+root.resizable(0,0) #type: ignore
 
 frame = Frame(root, padding=10)
 frame.pack(fill="both", expand=True)
@@ -240,7 +244,7 @@ def adjust_elo(delta):
 
 def on_mousewheel(event: tk.Event):
     # event.delta is positive (up) or negative (down)
-    shift = event.state & 0x0001
+    shift = event.state & 0x0001 #type: ignore
     delta = 5 if shift else 1
     direction = 1 if event.delta > 0 else -1
     adjust_elo(delta * direction)
@@ -249,7 +253,7 @@ def on_mousewheel(event: tk.Event):
 Label(bottom_frame, text="Opp ELO:").grid(row=0, column=0, sticky="e")
 opp_elo = tk.IntVar()
 opp_elo.set(950)  # Default elo value
-opp_elo_entry = Spinbox(bottom_frame, from_=0, to_=3000, increment=1, textvariable=opp_elo, width=10)
+opp_elo_entry = Spinbox(bottom_frame, from_=0, to=3000, increment=1, textvariable=opp_elo, width=10)
 opp_elo_entry.grid(row=0, column=1, padx=5)
 
 
