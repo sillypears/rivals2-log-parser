@@ -160,10 +160,7 @@ def run_parser(dev: int = 0):
             log_parser.setup_logging()
             extra_data = {}
             if are_required_dropdowns_filled():
-                final_move_id = -1
-                for var in winner_vars:
-                    if var.get() > 0:
-                        final_move_id = int(var.get())
+                for x in range(3): int(moves.get(move_vars[x].get(), -1))
                 extra_data = {
                     "game_1_char_pick": int(characters.get("Loxodont", -1)),
                     "game_2_char_pick": int(characters.get("Loxodont", -1)),
@@ -177,8 +174,11 @@ def run_parser(dev: int = 0):
                     "game_1_winner": 2 if winner_vars[0].get() else (1 if characters.get(opp_vars[0].get()) else -1),
                     "game_2_winner": 2 if winner_vars[1].get() else (1 if characters.get(opp_vars[1].get()) else -1),
                     "game_3_winner": 2 if winner_vars[2].get() else (1 if characters.get(opp_vars[2].get()) else -1),
+                    "game_1_final_move_id": int(moves.get(move_vars[0].get(), -1)),
+                    "game_2_final_move_id": int(moves.get(move_vars[1].get(), -1)),
+                    "game_3_final_move_id": int(moves.get(move_vars[2].get(), -1)),
                     "opponent_elo": int(opp_elo.get()),
-                    "final_move_id": final_move_id
+                    "final_move_id": -1
                 }
             logger.debug(extra_data)
             result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)

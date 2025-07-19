@@ -197,14 +197,17 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                     game_1_opponent_pick=extra_data["game_1_opponent_pick"],
                     game_1_stage=extra_data["game_1_stage"],
                     game_1_winner=extra_data["game_1_winner"],
+                    game_1_final_move_id=extra_data["game_1_final_move_id"],
                     game_2_char_pick=extra_data["game_2_char_pick"],
                     game_2_opponent_pick=extra_data["game_2_opponent_pick"],
                     game_2_stage=extra_data["game_2_stage"],
                     game_2_winner=extra_data["game_2_winner"],
+                    game_2_final_move_id=extra_data["game_2_final_move_id"],
                     game_3_char_pick=extra_data["game_3_char_pick"],
                     game_3_opponent_pick=extra_data["game_3_opponent_pick"],
                     game_3_stage=extra_data["game_3_stage"],
                     game_3_winner=extra_data["game_3_winner"],
+                    game_3_final_move_id=extra_data["game_3_final_move_id"],
                     final_move_id=extra_data["final_move_id"]
                 )
             else:
@@ -225,14 +228,17 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                     game_1_opponent_pick=match["game_1_opponent_pick"],
                     game_1_stage=match["game_1_stage"],
                     game_1_winner=match["game_1_winner"],
+                    game_1_final_move_id=match["game_1_final_move_id"],
                     game_2_char_pick=match["game_2_char_pick"],
                     game_2_opponent_pick=match["game_2_opponent_pick"],
                     game_2_stage=match["game_2_stage"],
                     game_2_winner=match["game_2_winner"],
+                    game_2_final_move_id=match["game_2_final_move_id"],
                     game_3_char_pick=match["game_3_char_pick"],
                     game_3_opponent_pick=match["game_3_opponent_pick"],
                     game_3_stage=match["game_3_stage"],
                     game_3_winner=match["game_3_winner"],
+                    game_3_final_move_id=match["game_3_final_move_id"],
                     final_move_id=match["final_move_id"]
 
                 )
