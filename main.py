@@ -19,6 +19,7 @@ stages = {}
 moves = {}
 STARTING_DEFAULT = 1000
 
+
 def setup_logging():
     os.makedirs(os.environ.get("LOG_DIR"), exist_ok=True)
     
@@ -80,18 +81,20 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
         stage_json = response.json()
         counter = -1
         for stage in stage_json['data']:
-            if counter == -1 and stage["counter_pick"] == -1:
-                stages1[stage["display_name"]] = stage["id"]
-            if counter == -1 and stage["counter_pick"] == 0:
-                stages["sepior1"] = -1
-                stages1["sepior1"] = -1
-            if stage["counter_pick"] == 0 :
-                counter = 0
-                stages1[stage["display_name"]] = stage["id"]
-            if counter == 0 and stage["counter_pick"] == 1:
-                stages["sepior2"] = -1
-                counter = 1
-            stages[stage["display_name"]] = stage["id"]
+            if stage['stage_type'] != "Doubles":
+                if counter == -1 and stage["counter_pick"] == -1:
+                    stages1[stage["display_name"]] = stage["id"]
+                if counter == -1 and stage["counter_pick"] == 0:
+                    stages["sepior1"] = -1
+                    stages1["sepior1"] = -1
+                if stage["counter_pick"] == 0 :
+                    counter = 0
+                    stages1[stage["display_name"]] = stage["id"]
+                if counter == 0 and stage["counter_pick"] == 1:
+                    stages["sepior2"] = -1
+                    counter = 1
+                stages[stage["display_name"]] = stage["id"]
+                    
         stage_names = list(stages.keys())
     except Exception as e:
         output_text.insert(tk.END, f"Error fetching character data: {e}\n")
@@ -102,7 +105,8 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
         response = requests.get("http://192.168.1.30:8005/movelist", timeout=5)
         response.raise_for_status()
         moves_json = response.json()
-        for move in moves_json['data']:
+        sorted_moves = sorted(moves_json['data'], key=lambda x: x['list_order'])
+        for move in sorted_moves:
             moves[move["display_name"]] = move["id"]
             if move["id"] == -1: move["sepior1"] = -1
         move_names = list(moves.keys())
@@ -111,7 +115,7 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
         output_text.see(tk.END)
         logger.error(f"Movelist failed to generate: {e}")
 
-    output_text.insert(tk.END, f"Fetched {len(character_names)} characters, {len(stage_names)} stages and {len(move_names)} moves.\n")
+    output_text.insert(tk.END, f"Fetched {len([x for x in characters_json['data'] if x['list_order'] > 0])} characters, {len([x for x in stage_json['data'] if x['list_order'] > 0])} stages and {len([x for x in moves_json['data'] if x['list_order'] > 0])} moves.\n")
     output_text.see(tk.END)
 
     try:            
@@ -152,7 +156,7 @@ def are_required_dropdowns_filled():
     ])
 
 def run_parser(dev: int = 0):
-    output_text.insert(tk.END, "Running log parser...\n")
+    # output_text.insert(tk.END, "Running log parser...\n")
     output_text.see(tk.END)
     run_button.config(state="disabled")
 
@@ -188,8 +192,7 @@ def run_parser(dev: int = 0):
                 output_text.see(tk.END)
                 run_button.config(state="normal")
                 return
-            output_text.insert(tk.END, "Log parsing complete.\n")
-            output_text.insert(tk.END, f"Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x["elo_rank_new"]) for x in result)] if result else ""}\n") # type: ignore
+            output_text.insert(tk.END, f"Log parsing complete. Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x["elo_rank_new"]) for x in result)] if result else ""}\n") # type: ignore
             output_text.see(tk.END)
             if cbvar.get():
                 #log_parser.truncate_db(cbvar.get())
@@ -207,11 +210,51 @@ def run_parser(dev: int = 0):
 def show_debug():
     output_text.insert(tk.END, f"{cbvar.get()}\n")
 
+def adjust_elo(delta):
+    try:
+        current = opp_elo.get()
+    except tk.TclError:
+        current = 0
+    opp_elo.set(current + delta)
+
+def on_mousewheel(event: tk.Event):
+    # event.delta is positive (up) or negative (down)
+    shift = event.state & 0x0001 #type: ignore
+    delta = 5 if shift else 1
+    direction = 1 if event.delta > 0 else -1
+    adjust_elo(delta * direction)
+
+def clear_matchup_fields():
+    # for x in range(len(opp_vars)
+    for x in opp_vars:
+        x.set("N/A")
+    for x in stage_vars:
+        x.set("N/A")
+    for x in winner_vars:
+        x.set(False)
+    for x in move_vars:
+        x.set("N/A")
+
+    opp_elo.set(STARTING_DEFAULT)
+
+def clear_field(event, field_name_var: tk.StringVar, value: str):
+    print(f"{event} - {field_name_var} set to {value}")
+    field_name_var.set(value)
+
 setup_logging()
 
 root = tk.Tk()
 root.title("Rivals 2 Log Parser")
 root.resizable(0,0) #type: ignore
+
+# dropdowns
+opp_vars = [] * 3 
+opp_dropdowns: list[OptionMenu] = []
+stage_vars = []
+stage_dropdowns: list[OptionMenu] = []
+winner_vars = []
+move_dropdowns: list[OptionMenu] = []
+move_vars = []
 
 frame = Frame(root, padding=10)
 frame.pack(fill="both", expand=True)
@@ -232,24 +275,8 @@ run_switch.pack(side=tk.RIGHT)
 output_text = scrolledtext.ScrolledText(frame, width=80, height=20)
 output_text.pack(fill="both", expand=True)
 
-# bottom
 bottom_frame = Frame(root, padding=10)
 bottom_frame.pack(fill="x")
-
-def adjust_elo(delta):
-    try:
-        current = opp_elo.get()
-    except tk.TclError:
-        current = 0
-    opp_elo.set(current + delta)
-
-def on_mousewheel(event: tk.Event):
-    # event.delta is positive (up) or negative (down)
-    shift = event.state & 0x0001 #type: ignore
-    delta = 5 if shift else 1
-    direction = 1 if event.delta > 0 else -1
-    adjust_elo(delta * direction)
-
 
 Label(bottom_frame, text="Opp ELO:").grid(row=0, column=0, sticky="e")
 opp_elo = tk.IntVar()
@@ -259,23 +286,15 @@ opp_elo_entry.grid(row=0, column=1, padx=5)
 
 
 opp_elo_entry.bind("<MouseWheel>", on_mousewheel)  # Windows
-# chars
-opp_vars = []
-opp_dropdowns: list[OptionMenu] = []
-stage_vars = []
-stage_dropdowns: list[OptionMenu] = []
-winner_vars = []
-move_dropdowns: list[OptionMenu] = []
-move_vars = []
-
-def sync_games(*args):
-    opp_vars[1].set(opp_vars[0].get())
 
 Label(bottom_frame, text=f"").grid(row=1, column=0, sticky='n')
 Label(bottom_frame, text=f"OppChar").grid(row=1, column=1, sticky='n')
 Label(bottom_frame, text=f"Stage").grid(row=1, column=2, sticky='n')
 Label(bottom_frame, text=f"").grid(row=1, column=4, sticky='n')
 Label(bottom_frame, text=f"FinalMove").grid(row=1, column=3, sticky='n')
+
+def sync_games(*args):
+    opp_vars[1].set(opp_vars[0].get())
 
 for x in range(3):
     Label(bottom_frame, text=f"Game {x+1}").grid(row=x+2, column=0, sticky="e")
@@ -288,10 +307,16 @@ for x in range(3):
     opp_dropdown = OptionMenu(bottom_frame, opp_var, "Loading...")
     if x == 0:
         opp_var.trace_add("write", sync_games)
+    
+
     stage_dropdown = OptionMenu(bottom_frame, stage_var, "Loading...")
     winner_checkbox = Checkbutton(bottom_frame, text="OppWins", variable=winner_var)
     move_dropdown = OptionMenu(bottom_frame, move_var, "Loading...")
     
+    opp_dropdown.bind(sequence="<Button-3>", func=lambda event, var=opp_var: clear_field(event, var, "N/A"))
+    stage_dropdown.bind(sequence="<Button-3>", func=lambda event, var=stage_var: clear_field(event, var, "N/A"))
+    move_dropdown.bind(sequence="<Button-3>", func=lambda event, var=move_var: clear_field(event, var, "N/A"))
+
     opp_dropdown.grid(row=x+2, column=1, padx=5, sticky="w")
     stage_dropdown.grid(row=x+2, column=2, padx=5, sticky="w")
     winner_checkbox.grid(row=x+2, column=4, padx=5, sticky="w")
@@ -306,18 +331,7 @@ for x in range(3):
     stage_dropdowns.append(stage_dropdown)
     move_dropdowns.append(move_dropdown)
 
-def clear_matchup_fields():
-    # for x in range(len(opp_vars)
-    for x in opp_vars:
-        x.set("N/A")
-    for x in stage_vars:
-        x.set("N/A")
-    for x in winner_vars:
-        x.set(False)
-    for x in move_vars:
-        x.set("N/A")
 
-    opp_elo.set(STARTING_DEFAULT)
 
 clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields)
 clear_button.grid(row=0, column=16, padx=10, sticky='es')
@@ -327,3 +341,4 @@ style.theme_use(themename="classic")
 populate_dropdowns(opp_dropdowns, stage_dropdowns, move_dropdowns)
 
 root.mainloop()
+
