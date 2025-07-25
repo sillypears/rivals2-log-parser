@@ -17,6 +17,7 @@ logger = logging.getLogger()
 characters = {}
 stages = {}
 moves = {}
+STARTING_DEFAULT = 1000
 
 def setup_logging():
     os.makedirs(os.environ.get("LOG_DIR"), exist_ok=True)
@@ -252,8 +253,8 @@ def on_mousewheel(event: tk.Event):
 
 Label(bottom_frame, text="Opp ELO:").grid(row=0, column=0, sticky="e")
 opp_elo = tk.IntVar()
-opp_elo.set(950)  # Default elo value
-opp_elo_entry = Spinbox(bottom_frame, from_=0, to=3000, increment=1, textvariable=opp_elo, width=10)
+opp_elo.set(STARTING_DEFAULT)  
+opp_elo_entry = tk.Spinbox(bottom_frame, from_=0, to=3000, textvariable=opp_elo, width=10)
 opp_elo_entry.grid(row=0, column=1, padx=5)
 
 
@@ -316,10 +317,10 @@ def clear_matchup_fields():
     for x in move_vars:
         x.set("N/A")
 
-    opp_elo.set(950)
+    opp_elo.set(STARTING_DEFAULT)
 
 clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields)
-clear_button.grid(row=0, column=16, padx=10, sticky='e')
+clear_button.grid(row=0, column=16, padx=10, sticky='es')
 
 style = Style()
 style.theme_use(themename="classic")
