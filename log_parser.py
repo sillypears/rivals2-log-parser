@@ -26,7 +26,7 @@ def setup_logging():
     logger.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG")) else logging.INFO) 
     logger.info(logger.getEffectiveLevel())
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        '%(asctime)s - %(module)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
@@ -76,7 +76,7 @@ def find_rank_in_logs(files: list[str]):
         ranks.append(extract_numbers(line))
     return ranks
 
-def extract_numbers(line: str, file: str = None) -> dict:
+def extract_numbers(line: str, file: str = None) -> Match:
     result = {}
     numbers = re.findall(r'-?\d+', line)
     ranks = numbers[-6:]
@@ -91,54 +91,46 @@ def extract_numbers(line: str, file: str = None) -> dict:
         logging.error(f"Couldn't extract date: {match.group(1)} {match.group(2)}")
     win_loss = 0 if int(ranks[2]) < 0 else 1
     try:
-        result = {
-            "match_date": dt,
-            "elo_rank_new": int(ranks[0]),
-            "elo_rank_old": int(ranks[1]),
-            "elo_change": int(ranks[2]),
-            "ranked_game_number": int(ranks[3]),
-            "total_wins": int(ranks[4]),
-            "win_streak_value": int(ranks[5]),
-            "opponent_elo": -1,
-            "opponent_elo":  calc_elo.estimate_opponent_elo(my_elo=int(ranks[1]), elo_change=int(ranks[2]), result=win_loss),
-            "opponent_name": "",
-            "game_1_char_pick": -1,
-            "game_1_opponent_pick": -1,
-            "game_1_stage":  -1,
-            "game_1_winner":  -1,
-            "game_2_char_pick": -1,
-            "game_2_opponent_pick": -1,
-            "game_2_stage":  -1,
-            "game_2_winner":  -1,
-            "game_3_char_pick": -1,
-            "game_3_opponent_pick": -1,
-            "game_3_stage": -1,
-            "game_3_winner": -1
-        }
+        result = Match(
+            match_date = dt,
+            elo_rank_new = int(ranks[0]),
+            elo_rank_old = int(ranks[1]),
+            elo_change = int(ranks[2]),
+            ranked_game_number = int(ranks[3]),
+            total_wins = int(ranks[4]),
+            win_streak_value = int(ranks[5]),
+            opponent_estimated_elo =  calc_elo.estimate_opponent_elo(my_elo=int(ranks[1]), elo_change=int(ranks[2]), result=win_loss),
+        )
     except:
         logger.error("Couldn't get ranks")
-        return {
-            "match_date": dt,
-            "elo_rank_new": -1,
-            "elo_rank_old": -1,
-            "elo_change": -1900,
-            "ranked_game_number": -1,
-            "total_wins": -1,
-            "win_streak_value": 0,
-            "opponent_elo":  -1,
-            "game_1_char_pick": -1,
-            "game_1_opponent_pick": -1,
-            "game_1_stage":  -1,
-            "game_1_winner":  -1,
-            "game_2_char_pick": -1,
-            "game_2_opponent_pick": -1,
-            "game_2_stage":  -1,
-            "game_2_winner":  -1,
-            "game_3_char_pick": -1,
-            "game_3_opponent_pick": -1,
-            "game_3_stage": -1,
-            "game_3_winner": -1
-        }
+        result = Match(
+            match_date = dt,
+            elo_change = -1900,
+            win_streak_value = 0,
+            opponent_estimated_elo =  calc_elo.estimate_opponent_elo(my_elo=int(ranks[1]), elo_change=int(ranks[2]), result=win_loss),
+        )
+    # {
+    #         match_date = dt,
+    #         elo_rank_new = -1,
+    #         "elo_rank_old": -1,
+    #         "elo_change": -1900,
+    #         "ranked_game_number": -1,
+    #         "total_wins": -1,
+    #         "win_streak_value": 0,
+    #         "opponent_elo":  -1,
+    #         "game_1_char_pick": -1,
+    #         "game_1_opponent_pick": -1,
+    #         "game_1_stage":  -1,
+    #         "game_1_winner":  -1,
+    #         "game_2_char_pick": -1,
+    #         "game_2_opponent_pick": -1,
+    #         "game_2_stage":  -1,
+    #         "game_2_winner":  -1,
+    #         "game_3_char_pick": -1,
+    #         "game_3_opponent_pick": -1,
+    #         "game_3_stage": -1,
+    #         "game_3_winner": -1
+    #     }
     return result
 
 def post_match(match: Match) -> requests.Response|dict:
@@ -174,75 +166,79 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
         return -1
     new_matches = []
     for match in data:
-        if not db.see_if_game_exists(match["ranked_game_number"], match["match_date"]):
+        if not db.see_if_game_exists(match.ranked_game_number, match.match_date):
             new_matches.append(match)
+    if len(new_matches) < 1: return count
     for match in new_matches:
         res = None
+        # try:
+        if len(new_matches) == 1 and extra_data:
+            logger.debug(f"creating new_match, {len(new_matches)}, {extra_data}")
+            new_match = Match(
+                match_date=match.match_date.isoformat(),
+                elo_rank_new=match.elo_rank_new,
+                elo_rank_old=match.elo_rank_old,
+                elo_change=match.elo_change,
+                match_win=1 if match.elo_change >= 0 else 0,
+                match_forfeit=0,
+                ranked_game_number=match.ranked_game_number,
+                total_wins=match.total_wins,
+                win_streak_value=match.win_streak_value,
+                opponent_elo=extra_data["opponent_elo"],
+                opponent_estimated_elo=match.opponent_estimated_elo,
+                opponent_name=match.opponent_name,
+                game_1_char_pick=extra_data["game_1_char_pick"],
+                game_1_opponent_pick=extra_data["game_1_opponent_pick"],
+                game_1_stage=extra_data["game_1_stage"],
+                game_1_winner=extra_data["game_1_winner"],
+                game_1_final_move_id=extra_data["game_1_final_move_id"],
+                game_2_char_pick=extra_data["game_2_char_pick"],
+                game_2_opponent_pick=extra_data["game_2_opponent_pick"],
+                game_2_stage=extra_data["game_2_stage"],
+                game_2_winner=extra_data["game_2_winner"],
+                game_2_final_move_id=extra_data["game_2_final_move_id"],
+                game_3_char_pick=extra_data["game_3_char_pick"],
+                game_3_opponent_pick=extra_data["game_3_opponent_pick"],
+                game_3_stage=extra_data["game_3_stage"],
+                game_3_winner=extra_data["game_3_winner"],
+                game_3_final_move_id=extra_data["game_3_final_move_id"],
+                final_move_id=extra_data["final_move_id"]
+            )
+        else:
+            new_match = Match(
+                match_date=match.match_date.isoformat(),
+                elo_rank_new=match.elo_rank_new,
+                elo_rank_old=match.elo_rank_old,
+                elo_change=match.elo_change,
+                match_win=1 if match.elo_change >= 0 else 0,
+                match_forfeit=0,
+                ranked_game_number=match.ranked_game_number,
+                total_wins=match.total_wins,
+                win_streak_value=match.win_streak_value,
+                opponent_elo=match.opponent_elo,
+                opponent_estimated_elo=match.opponent_estimated_elo,
+                opponent_name=match.opponent_name,
+                game_1_char_pick=match.game_1_char_pick,
+                game_1_opponent_pick=match.game_1_opponent_pick,
+                game_1_stage=match.game_1_stage,
+                game_1_winner=match.game_1_winner,
+                game_1_final_move_id=match.game_1_final_move_id,
+                game_2_char_pick=match.game_2_char_pick,
+                game_2_opponent_pick=match.game_2_opponent_pick,
+                game_2_stage=match.game_2_stage,
+                game_2_winner=match.game_2_winner,
+                game_2_final_move_id=match.game_2_final_move_id,
+                game_3_char_pick=match.game_3_char_pick,
+                game_3_opponent_pick=match.game_3_opponent_pick,
+                game_3_stage=match.game_3_stage,
+                game_3_winner=match.game_3_winner,
+                game_3_final_move_id=match.game_3_final_move_id,
+                final_move_id=match.final_move_id
+            )
+        # except Exception as e:
+        #     logger.error({e})
+        #     return count
         try:
-            if len(new_matches) == 1 and extra_data:
-                new_match = Match(
-                    match_date=match["match_date"].isoformat() if isinstance(match["match_date"], datetime) else match["match_date"],
-                    elo_rank_new=match["elo_rank_new"],
-                    elo_rank_old=match["elo_rank_old"],
-                    elo_change=match["elo_change"],
-                    match_win=1 if match["elo_change"] >= 0 else 0,
-                    match_forfeit=0,
-                    ranked_game_number=match["ranked_game_number"],
-                    total_wins=match["total_wins"],
-                    win_streak_value=match["win_streak_value"],
-                    opponent_elo=extra_data["opponent_elo"],
-                    opponent_estimated_elo=match["opponent_elo"],
-                    opponent_name=match["opponent_name"],
-                    game_1_char_pick=extra_data["game_1_char_pick"],
-                    game_1_opponent_pick=extra_data["game_1_opponent_pick"],
-                    game_1_stage=extra_data["game_1_stage"],
-                    game_1_winner=extra_data["game_1_winner"],
-                    game_1_final_move_id=extra_data["game_1_final_move_id"],
-                    game_2_char_pick=extra_data["game_2_char_pick"],
-                    game_2_opponent_pick=extra_data["game_2_opponent_pick"],
-                    game_2_stage=extra_data["game_2_stage"],
-                    game_2_winner=extra_data["game_2_winner"],
-                    game_2_final_move_id=extra_data["game_2_final_move_id"],
-                    game_3_char_pick=extra_data["game_3_char_pick"],
-                    game_3_opponent_pick=extra_data["game_3_opponent_pick"],
-                    game_3_stage=extra_data["game_3_stage"],
-                    game_3_winner=extra_data["game_3_winner"],
-                    game_3_final_move_id=extra_data["game_3_final_move_id"],
-                    final_move_id=extra_data["final_move_id"]
-                )
-            else:
-                new_match = Match(
-                    match_date=match["match_date"].isoformat() if isinstance(match["match_date"], datetime) else match["match_date"],
-                    elo_rank_new=match["elo_rank_new"],
-                    elo_rank_old=match["elo_rank_old"],
-                    elo_change=match["elo_change"],
-                    match_win=1 if match["elo_change"] >= 0 else 0,
-                    match_forfeit=0,
-                    ranked_game_number=match["ranked_game_number"],
-                    total_wins=match["total_wins"],
-                    win_streak_value=match["win_streak_value"],
-                    opponent_elo=match["opponent_elo"],
-                    opponent_estimated_elo=match["opponent_elo"],
-                    opponent_name=match["opponent_name"],
-                    game_1_char_pick=match["game_1_char_pick"],
-                    game_1_opponent_pick=match["game_1_opponent_pick"],
-                    game_1_stage=match["game_1_stage"],
-                    game_1_winner=match["game_1_winner"],
-                    game_1_final_move_id=match["game_1_final_move_id"],
-                    game_2_char_pick=match["game_2_char_pick"],
-                    game_2_opponent_pick=match["game_2_opponent_pick"],
-                    game_2_stage=match["game_2_stage"],
-                    game_2_winner=match["game_2_winner"],
-                    game_2_final_move_id=match["game_2_final_move_id"],
-                    game_3_char_pick=match["game_3_char_pick"],
-                    game_3_opponent_pick=match["game_3_opponent_pick"],
-                    game_3_stage=match["game_3_stage"],
-                    game_3_winner=match["game_3_winner"],
-                    game_3_final_move_id=match["game_3_final_move_id"],
-                    final_move_id=match["final_move_id"]
-
-                )
-            
             # db.insert_match(match)
             if not dev:
                 logger.debug(f"Posting match: {new_match.ranked_game_number} to BE")

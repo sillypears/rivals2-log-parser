@@ -10,6 +10,10 @@ from dotenv import load_dotenv
 import requests
 import traceback
 import log_parser
+from datetime import datetime
+from utils.calc_elo import estimate_opponent_elo
+from pprint import pprint
+import json
 
 load_dotenv()
 logger = logging.getLogger()
@@ -19,6 +23,17 @@ stages = {}
 moves = {}
 STARTING_DEFAULT = 1000
 
+def get_current_elo() -> dict:
+    res = requests.get("http://192.168.1.30:8005/current_tier")
+    res.raise_for_status()
+    if res.status_code == 200:
+        json = res.json()
+        return json
+    return {"status":"FAIL","data":{"current_elo":-2,"tier":"N/A","tier_short":"N/A", "last_game_number": -2}}
+
+def refresh_top_row() -> None:
+    my_elo.set(get_current_elo()["data"]["current_elo"])
+    change_elo.set(0)
 
 def setup_logging():
     os.makedirs(os.environ.get("LOG_DIR"), exist_ok=True)
@@ -28,7 +43,7 @@ def setup_logging():
     logger.info(logger.level)
 
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        '%(asctime)s - %(module)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
@@ -185,14 +200,13 @@ def run_parser(dev: int = 0):
                     "opponent_elo": int(opp_elo.get()),
                     "final_move_id": -1
                 }
-            logger.debug(extra_data)
             result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)
             if result == -1:
                 output_text.insert(tk.END, "No matches found or no new matches to add.\n")
                 output_text.see(tk.END)
                 run_button.config(state="normal")
                 return
-            output_text.insert(tk.END, f"Log parsing complete. Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x["elo_rank_new"]) for x in result)] if result else ""}\n") # type: ignore
+            output_text.insert(tk.END, f"Log parsing complete. Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x.elo_rank_new) for x in result)] if result else ""}\n") # type: ignore
             output_text.see(tk.END)
             if cbvar.get():
                 #log_parser.truncate_db(cbvar.get())
@@ -241,6 +255,35 @@ def clear_field(event, field_name_var: tk.StringVar, value: str):
     print(f"{event} - {field_name_var} set to {value}")
     field_name_var.set(value)
 
+def generate_json():
+    elo_values = get_current_elo()
+    jsond = {}
+    jsond["match_date"] = datetime.now().isoformat(timespec="seconds")
+    jsond["elo_rank_new"] = int(my_elo.get())
+    jsond["elo_change"] = int(change_elo.get())
+    jsond["elo_rank_old"] = jsond["elo_rank_new"] - jsond["elo_change"]
+    jsond["match_win"] =  1 if jsond["elo_change"] >= 0 else 0
+    jsond["match_forfeit"] =  -1
+    jsond["ranked_game_number"] = int(elo_values["data"]["last_game_number"])+1
+    jsond["total_wins"] = int(elo_values["data"]["total_wins"]) + 1 if jsond["match_win"] else int(elo_values["data"]["total_wins"])
+    jsond["win_streak_value"] = int(elo_values["data"]["win_streak_value"]) + 1 if jsond["match_win"] else int(elo_values["data"]["win_streak_value"])
+    jsond["opponent_elo"] = int(opp_elo.get())
+    jsond["opponent_estimated_elo"] = estimate_opponent_elo(jsond["elo_rank_new"], jsond["elo_change"], jsond["match_win"])
+    jsond["opponent_name"] = ""    
+    for x in range(3):
+        jsond[f"game_{x+1}_char_pick"] = 2
+        jsond[f"game_{x+1}_opponent_pick"] = int(characters.get(opp_vars[x].get(), -2))
+        jsond[f"game_{x+1}_stage"] = int(stages.get(stage_vars[x].get(), -2))
+        jsond[f"game_{x+1}_final_move_id"] = int(moves.get(move_vars[x].get(), -2))
+        jsond[f"game_{x+1}_winner"] = 2 if winner_vars[x].get() else (1 if opp_vars[x].get() != "N/A" else -2)
+    jsond["final_move_id"] = -2
+    jsond["notes"] = "Added via JSON lol"
+    logger.debug(json.dumps(jsond))
+    root.clipboard_clear()
+    root.clipboard_append(json.dumps(jsond, indent=4))
+    root.update()
+
+    
 setup_logging()
 
 root = tk.Tk()
@@ -278,26 +321,40 @@ output_text.pack(fill="both", expand=True)
 bottom_frame = Frame(root, padding=10)
 bottom_frame.pack(fill="x")
 
-Label(bottom_frame, text="Opp ELO:").grid(row=0, column=0, sticky="e")
+Label(bottom_frame, text="Opp ELO").grid(row=0, column=1)
 opp_elo = tk.IntVar()
 opp_elo.set(STARTING_DEFAULT)  
 opp_elo_entry = tk.Spinbox(bottom_frame, from_=0, to=3000, textvariable=opp_elo, width=10)
-opp_elo_entry.grid(row=0, column=1, padx=5)
+opp_elo_entry.grid(row=1, column=1, padx=5)
+
+Label(bottom_frame, text="My New ELO").grid(row=0, column=2)
+my_elo = tk.IntVar()
+my_elo.set(int(get_current_elo()["data"]["current_elo"]))
+my_elo_entry = tk.Spinbox(bottom_frame, from_=0, to=3000, textvariable=my_elo, width=10)
+my_elo_entry.grid(row=1, column=2, padx=5, sticky="w")
+
+Label(bottom_frame, text="ELO Delta").grid(row=0, column=3 )
+change_elo = tk.IntVar()
+change_elo.set(0)
+change_elo_entry = tk.Spinbox(bottom_frame, from_=-50, to=50, textvariable=change_elo, width=10)
+change_elo_entry.grid(row=1, column=3, padx=5, sticky="w")
+
+refresh_button = Button(bottom_frame, text="Refresh", command=refresh_top_row)
+refresh_button.grid(row=1, column=4, padx=10, sticky="w")
 
 
-opp_elo_entry.bind("<MouseWheel>", on_mousewheel)  # Windows
-
-Label(bottom_frame, text=f"").grid(row=1, column=0, sticky='n')
-Label(bottom_frame, text=f"OppChar").grid(row=1, column=1, sticky='n')
-Label(bottom_frame, text=f"Stage").grid(row=1, column=2, sticky='n')
-Label(bottom_frame, text=f"").grid(row=1, column=4, sticky='n')
-Label(bottom_frame, text=f"FinalMove").grid(row=1, column=3, sticky='n')
+Label(bottom_frame, text=f"").grid(row=2, column=0, sticky='n')
+Label(bottom_frame, text=f"OppChar").grid(row=2, column=1, sticky='n')
+Label(bottom_frame, text=f"Stage").grid(row=2, column=2, sticky='n')
+Label(bottom_frame, text=f"").grid(row=2, column=4, sticky='n')
+Label(bottom_frame, text=f"FinalMove").grid(row=2, column=3, sticky='n')
 
 def sync_games(*args):
     opp_vars[1].set(opp_vars[0].get())
 
 for x in range(3):
-    Label(bottom_frame, text=f"Game {x+1}").grid(row=x+2, column=0, sticky="e")
+    delta = 3
+    Label(bottom_frame, text=f"Game {x+1}").grid(row=x+delta, column=0, sticky="e")
 
     opp_var = tk.StringVar()
     stage_var = tk.StringVar()
@@ -317,10 +374,10 @@ for x in range(3):
     stage_dropdown.bind(sequence="<Button-3>", func=lambda event, var=stage_var: clear_field(event, var, "N/A"))
     move_dropdown.bind(sequence="<Button-3>", func=lambda event, var=move_var: clear_field(event, var, "N/A"))
 
-    opp_dropdown.grid(row=x+2, column=1, padx=5, sticky="w")
-    stage_dropdown.grid(row=x+2, column=2, padx=5, sticky="w")
-    winner_checkbox.grid(row=x+2, column=4, padx=5, sticky="w")
-    move_dropdown.grid(row=x+2, column=3, padx=5, sticky="w")
+    opp_dropdown.grid(row=x+delta, column=1, padx=5, sticky="w")
+    stage_dropdown.grid(row=x+delta, column=2, padx=5, sticky="w")
+    winner_checkbox.grid(row=x+delta, column=4, padx=5, sticky="w")
+    move_dropdown.grid(row=x+delta, column=3, padx=5, sticky="w")
 
     opp_vars.append(opp_var)
     stage_vars.append(stage_var)
@@ -334,7 +391,10 @@ for x in range(3):
 
 
 clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields)
-clear_button.grid(row=0, column=16, padx=10, sticky='es')
+clear_button.grid(row=1, column=16, padx=10, sticky='e')
+
+copy_button = Button(bottom_frame, text="Copy", command=generate_json)
+copy_button.grid(row=1, column=17, padx=10, sticky="e")
 
 style = Style()
 style.theme_use(themename="classic")

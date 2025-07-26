@@ -16,45 +16,28 @@ class Match:
     win_streak_value: int = -1
     opponent_elo: int = -1
     opponent_estimated_elo: int = -1
-    opponent_name: Optional[str] = None
+    opponent_name: Optional[str] = ""
     game_1_char_pick: Optional[int] = -1
-    game_1_char_pick_name: Optional[str] = None
-    game_1_char_pick_image: Optional[str] = None
     game_1_opponent_pick: Optional[int] = -1
-    game_1_opponent_pick_name: Optional[str] = None
-    game_1_opponent_pick_image: Optional[str] = None
     game_1_stage: Optional[int] = -1
-    game_1_stage_name: Optional[int] = -1
     game_1_winner: Optional[int] = -1
     game_1_final_move_id: Optional[int] = -1
-    game_1_final_move_name: Optional[str] = None
-    game_1_final_move_short: Optional[str] = None
     game_2_char_pick: Optional[int] = -1
-    game_2_char_pick_name: Optional[str] = None
-    game_2_char_pick_image: Optional[str] = None
     game_2_opponent_pick: Optional[int] = -1
-    game_2_opponent_pick_name: Optional[str] = None
-    game_2_opponent_pick_image: Optional[str] = None
     game_2_stage: Optional[int] = -1
-    game_2_stage_name: Optional[int] = -1
     game_2_winner: Optional[int] = -1
     game_2_final_move_id: Optional[int] = -1
-    game_2_final_move_name: Optional[str] = None
-    game_2_final_move_short: Optional[str] = None
     game_3_char_pick: Optional[int] = -1
-    game_3_char_pick_name: Optional[str] = None
-    game_3_char_pick_image: Optional[str] = None
     game_3_opponent_pick: Optional[int] = -1
-    game_3_opponent_pick_name: Optional[str] = None
-    game_3_opponent_pick_image: Optional[str] = None
     game_3_stage: Optional[int] = -1
-    game_3_stage_name: Optional[int] = -1
     game_3_winner: Optional[int] = -1
     game_3_final_move_id: Optional[int] = -1
-    game_3_final_move_name: Optional[str] = None
-    game_3_final_move_short: Optional[str] = None
-    season_id: Optional[int] = None
-    season_short_name: Optional[str] = None
-    season_display_name: Optional[str] = None
+    season_id: Optional[int] = -1
     final_move_id: Optional[int] = -1
-    notes: Optional[str] = None
+    notes: Optional[str] = ""
+
+    def __repr__(self):
+        return self.game_1_final_move_id
+
+    def __str__(self):
+        return self.ranked_game_number
