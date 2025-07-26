@@ -75,6 +75,29 @@ def update_option_menu(option_menu: OptionMenu, var, options):
     if options:
         var.set(options[0])
 
+def update_option_menu_with_category_separators(option_menu: OptionMenu, var: tk.StringVar, sorted_moves: list[dict]):
+    menu: tk.Menu = option_menu["menu"]
+    menu.delete(0, "end")
+
+    last_category = sorted_moves[0]["category"] if sorted_moves else None
+
+    for i, move in enumerate(sorted_moves):
+        display_name = move["display_name"]
+        category = move["category"]
+
+        menu.add_command(label=display_name, command=lambda v=display_name: var.set(v))
+
+        next_move = sorted_moves[i + 1] if i + 1 < len(sorted_moves) else None
+        next_category = next_move["category"] if next_move else None
+
+        # Add separator after current category, but not after the last item
+        if category != next_category:
+            menu.add_separator()
+
+    if sorted_moves:
+        var.set(sorted_moves[0]["display_name"])
+
+
 def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[OptionMenu], move_dropdowns: list[OptionMenu]):
     try:
         stages1 = {}
@@ -123,7 +146,8 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
         sorted_moves = sorted(moves_json['data'], key=lambda x: x['list_order'])
         for move in sorted_moves:
             moves[move["display_name"]] = move["id"]
-            if move["id"] == -1: move["sepior1"] = -1
+            if move["id"] == -1: 
+                moves["sepior"] = -1
         move_names = list(moves.keys())
     except Exception as e:
         output_text.insert(tk.END, f"Error fetching character data: {e}\n")
@@ -140,11 +164,11 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
                 update_option_menu(stage_dropdowns[x], stage_vars[x], list(stages1.keys()))
             else:
                 update_option_menu(stage_dropdowns[x], stage_vars[x], stage_names)
-            update_option_menu(move_dropdowns[x], move_vars[x], move_names)
+            update_option_menu_with_category_separators(move_dropdowns[x], move_vars[x], sorted_moves)
 
 
     except Exception as e:
-        output_text.insert(tk.END, f"Error updating character data: {e}\n")
+        output_text.insert(tk.END, f"Error updating data: {e}\n")
         output_text.see(tk.END)
 
 def populate_movelist(move_list: OptionMenu):
@@ -152,15 +176,15 @@ def populate_movelist(move_list: OptionMenu):
         response = requests.get("http://192.168.1.30:8005/movelist", timeout=5)
         response.raise_for_status()
         moves_json = response.json()
-        for move in moves_json['data']:
+        sorted_moves = sorted(moves_json['data'], key=lambda x: x['list_order'])
+        print(sorted_moves)
+        for move in sorted_moves:
             moves[move["display_name"]] = move["id"]
             if move["id"] == -1: move["sepior1"] = -1
-
-
         move_names = list(moves.keys())
     except Exception as e:
         logger.error(f"Movelist failed to generate: {e}")
-    update_option_menu(move_list, move_var, move_names)
+    update_option_menu_with_categories(move_list, move_var, move_names)
 
 def are_required_dropdowns_filled():
     return all([
@@ -218,6 +242,7 @@ def run_parser(dev: int = 0):
             traceback.print_exc()
         finally:
             run_button.config(state="normal")
+            refresh_top_row()
 
     threading.Thread(target=worker).start()
 
@@ -389,12 +414,11 @@ for x in range(3):
     move_dropdowns.append(move_dropdown)
 
 
+copy_button = Button(bottom_frame, text="Copy", command=generate_json)
+copy_button.grid(row=1, column=16, padx=10, sticky="e")
 
 clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields)
-clear_button.grid(row=1, column=16, padx=10, sticky='e')
-
-copy_button = Button(bottom_frame, text="Copy", command=generate_json)
-copy_button.grid(row=1, column=17, padx=10, sticky="e")
+clear_button.grid(row=1, column=18, padx=10, sticky='e')
 
 style = Style()
 style.theme_use(themename="classic")
