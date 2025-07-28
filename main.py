@@ -249,19 +249,19 @@ def run_parser(dev: int = 0):
 def show_debug():
     output_text.insert(tk.END, f"{cbvar.get()}\n")
 
-def adjust_elo(delta):
-    try:
-        current = opp_elo.get()
-    except tk.TclError:
-        current = 0
-    opp_elo.set(current + delta)
+# def adjust_elo(delta):
+#     try:
+#         current = opp_elo.get()
+#     except tk.TclError:
+#         current = 0
+#     opp_elo.set(current + delta)
 
-def on_mousewheel(event: tk.Event):
-    # event.delta is positive (up) or negative (down)
-    shift = event.state & 0x0001 #type: ignore
-    delta = 5 if shift else 1
-    direction = 1 if event.delta > 0 else -1
-    adjust_elo(delta * direction)
+# def on_mousewheel(event: tk.Event):
+#     # event.delta is positive (up) or negative (down)
+#     shift = event.state & 0x0001 #type: ignore
+#     delta = 5 if shift else 1
+#     direction = 1 if event.delta > 0 else -1
+#     adjust_elo(delta * direction)
 
 def clear_matchup_fields():
     # for x in range(len(opp_vars)
@@ -349,19 +349,19 @@ bottom_frame.pack(fill="x")
 Label(bottom_frame, text="Opp ELO").grid(row=0, column=1)
 opp_elo = tk.IntVar()
 opp_elo.set(STARTING_DEFAULT)  
-opp_elo_entry = tk.Spinbox(bottom_frame, from_=0, to=3000, textvariable=opp_elo, width=10)
+opp_elo_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=opp_elo, width=10)
 opp_elo_entry.grid(row=1, column=1, padx=5)
 
 Label(bottom_frame, text="My New ELO").grid(row=0, column=2)
 my_elo = tk.IntVar()
 my_elo.set(int(get_current_elo()["data"]["current_elo"]))
-my_elo_entry = tk.Spinbox(bottom_frame, from_=0, to=3000, textvariable=my_elo, width=10)
+my_elo_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=my_elo, width=10)
 my_elo_entry.grid(row=1, column=2, padx=5, sticky="w")
 
 Label(bottom_frame, text="ELO Delta").grid(row=0, column=3 )
 change_elo = tk.IntVar()
 change_elo.set(0)
-change_elo_entry = tk.Spinbox(bottom_frame, from_=-50, to=50, textvariable=change_elo, width=10)
+change_elo_entry = Spinbox(bottom_frame, from_=-50, to=50, textvariable=change_elo, width=10)
 change_elo_entry.grid(row=1, column=3, padx=5, sticky="w")
 
 refresh_button = Button(bottom_frame, text="Refresh", command=refresh_top_row)
