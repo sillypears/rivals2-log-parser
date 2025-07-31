@@ -222,6 +222,7 @@ def run_parser(dev: int = 0):
                     "game_2_final_move_id": int(moves.get(move_vars[1].get(), -1)),
                     "game_3_final_move_id": int(moves.get(move_vars[2].get(), -1)),
                     "opponent_elo": int(opp_elo.get()),
+                    "opponent_name": name_var.get() if name_var.get() is not None else "",
                     "final_move_id": -1
                 }
             result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)
@@ -273,11 +274,11 @@ def clear_matchup_fields():
         x.set(False)
     for x in move_vars:
         x.set("N/A")
-
+    name_var.set("")
     opp_elo.set(STARTING_DEFAULT)
 
 def clear_field(event, field_name_var: tk.StringVar, value: str):
-    print(f"{event} - {field_name_var} set to {value}")
+    logger.debug(f"{event} - {field_name_var} set to {value}")
     field_name_var.set(value)
 
 def generate_json():
@@ -294,7 +295,7 @@ def generate_json():
     jsond["win_streak_value"] = int(elo_values["data"]["win_streak_value"]) + 1 if jsond["match_win"] else int(elo_values["data"]["win_streak_value"])
     jsond["opponent_elo"] = int(opp_elo.get())
     jsond["opponent_estimated_elo"] = estimate_opponent_elo(jsond["elo_rank_new"], jsond["elo_change"], jsond["match_win"])
-    jsond["opponent_name"] = ""    
+    jsond["opponent_name"] = name_var.get() if name_var.get() is not None else ""
     for x in range(3):
         jsond[f"game_{x+1}_char_pick"] = 2
         jsond[f"game_{x+1}_opponent_pick"] = int(characters.get(opp_vars[x].get(), -2))
@@ -419,6 +420,12 @@ copy_button.grid(row=1, column=16, padx=10, sticky="e")
 
 clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields)
 clear_button.grid(row=1, column=18, padx=10, sticky='e')
+
+name_label = Label(bottom_frame, text="OppName").grid(row=2, column=17, padx=5, sticky='e')
+name_var = tk.StringVar()
+name_field = Entry(bottom_frame, textvariable=name_var, )
+name_field.grid(row=2, column=18, padx=10, sticky='e')
+name_field.bind(sequence="<Button-3>", func=lambda event, var=opp_var: clear_field(event, name_var, ""))
 
 style = Style()
 style.theme_use(themename="classic")
