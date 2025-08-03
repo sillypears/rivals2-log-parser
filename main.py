@@ -2,20 +2,19 @@ import tkinter as tk
 from tkinter.ttk import *
 from tkinter import messagebox, scrolledtext
 import threading
-import sys
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from dotenv import load_dotenv
+from config import Config
 import requests
 import traceback
 import log_parser
 from datetime import datetime
 from utils.calc_elo import estimate_opponent_elo
-from pprint import pprint
 import json
 
-load_dotenv()
+config = Config()
+
 logger = logging.getLogger()
 
 characters = {}
@@ -23,8 +22,63 @@ stages = {}
 moves = {}
 STARTING_DEFAULT = 1000
 
+class AutocompleteEntry(tk.Entry):
+    def __init__(self, autocomplete_list, *args, **kwargs):
+        self.var = kwargs.get("textvariable") or tk.StringVar()
+        kwargs["textvariable"] = self.var
+        super().__init__(*args, **kwargs)
+
+        self.autocomplete_list = autocomplete_list
+        self.listbox = None
+
+        self.bind('<KeyRelease>', self.check_autocomplete)
+
+    def check_autocomplete(self, event):
+        typed = self.var.get()
+        if not typed:
+            self.close_listbox()
+            return
+
+        matches = [name for name in self.autocomplete_list 
+                   if typed.lower() in name.lower()]
+
+        if matches:
+            self.show_listbox(matches)
+        else:
+            self.close_listbox()
+
+    def show_listbox(self, matches):
+        if self.listbox:
+            self.listbox.destroy()
+
+        self.listbox = tk.Listbox(self.winfo_toplevel(), width=self["width"])
+        x = self.winfo_x()
+        y = self.winfo_y() + self.winfo_height()
+        self.listbox.place(x=x, y=y)
+
+        for match in matches:
+            self.listbox.insert(tk.END, match)
+
+        self.listbox.bind("<<ListboxSelect>>", self.on_select)
+
+    def on_select(self, event):
+        if self.listbox:
+            selection = self.listbox.get(self.listbox.curselection())
+            self.var.set(selection)
+            self.close_listbox()
+
+    def close_listbox(self):
+        if self.listbox:
+            self.listbox.destroy()
+            self.listbox = None
+
+    def update_autocomplete_list(self, new_list: list[str]):
+        """Call this to refresh the list of autocomplete names."""
+        self.autocomplete_list = new_list
+
+
 def get_current_elo() -> dict:
-    res = requests.get("http://192.168.1.30:8005/current_tier")
+    res = requests.get(f"http://{config.be_host}:{config.be_port}/current_tier")
     res.raise_for_status()
     if res.status_code == 200:
         json = res.json()
@@ -35,11 +89,16 @@ def refresh_top_row() -> None:
     my_elo.set(get_current_elo()["data"]["current_elo"])
     change_elo.set(0)
 
+def get_opponent_names():
+    response = requests.get(f"http://{config.be_host}:{config.be_port}/opponent_names", timeout=5)
+    response.raise_for_status()
+    return response.json()["data"]
+
 def setup_logging():
-    os.makedirs(os.environ.get("LOG_DIR"), exist_ok=True)
+    os.makedirs(config.log_dir, exist_ok=True)
     
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG")) else logging.INFO) 
+    logger.setLevel(logging.DEBUG if int(config.debug) else logging.INFO) 
     logger.info(logger.level)
 
     formatter = logging.Formatter(
@@ -48,17 +107,17 @@ def setup_logging():
     )
 
     file_handler = RotatingFileHandler(
-        os.path.join(os.environ.get("LOG_DIR"), os.environ.get("LOG_FILE")), 
-        maxBytes=int(os.environ.get("MAX_LOG_SIZE")), 
-        backupCount=int(os.environ.get("BACKUP_COUNT"))
+        os.path.join(config.log_dir, config.log_file), 
+        maxBytes=int(config.max_log_size), 
+        backupCount=int(config.backup_count)
     )
 
     file_handler.setFormatter(formatter)
-    file_handler.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG")) else logging.INFO)
+    file_handler.setLevel(logging.DEBUG if int(config.debug) else logging.INFO)
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
-    console_handler.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG")) else logging.INFO)
+    console_handler.setLevel(logging.DEBUG if int(config.debug) else logging.INFO)
 
     if not logger.handlers:
         logger.addHandler(file_handler)
@@ -90,7 +149,6 @@ def update_option_menu_with_category_separators(option_menu: OptionMenu, var: tk
         next_move = sorted_moves[i + 1] if i + 1 < len(sorted_moves) else None
         next_category = next_move["category"] if next_move else None
 
-        # Add separator after current category, but not after the last item
         if category != next_category:
             menu.add_separator()
 
@@ -101,7 +159,7 @@ def update_option_menu_with_category_separators(option_menu: OptionMenu, var: tk
 def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[OptionMenu], move_dropdowns: list[OptionMenu]):
     try:
         stages1 = {}
-        response = requests.get("http://192.168.1.30:8005/characters", timeout=5)
+        response = requests.get(f"http://{config.be_host}:{config.be_port}/characters", timeout=5)
         response.raise_for_status()
         characters_json = response.json()
         for char in characters_json['data']:
@@ -114,7 +172,7 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
         logger.error(f"Charlist failed to generate: {e}")
 
     try:
-        response = requests.get("http://192.168.1.30:8005/stages", timeout=5)
+        response = requests.get(f"http://{config.be_host}:{config.be_port}/stages", timeout=5)
         response.raise_for_status()
         stage_json = response.json()
         counter = -1
@@ -140,7 +198,7 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
         logger.error(f"Stagelist failed to generate: {e}")
 
     try:
-        response = requests.get("http://192.168.1.30:8005/movelist", timeout=5)
+        response = requests.get(f"http://{config.be_host}:{config.be_port}/movelist", timeout=5)
         response.raise_for_status()
         moves_json = response.json()
         sorted_moves = sorted(moves_json['data'], key=lambda x: x['list_order'])
@@ -171,20 +229,20 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
         output_text.insert(tk.END, f"Error updating data: {e}\n")
         output_text.see(tk.END)
 
-def populate_movelist(move_list: OptionMenu):
-    try:
-        response = requests.get("http://192.168.1.30:8005/movelist", timeout=5)
-        response.raise_for_status()
-        moves_json = response.json()
-        sorted_moves = sorted(moves_json['data'], key=lambda x: x['list_order'])
-        print(sorted_moves)
-        for move in sorted_moves:
-            moves[move["display_name"]] = move["id"]
-            if move["id"] == -1: move["sepior1"] = -1
-        move_names = list(moves.keys())
-    except Exception as e:
-        logger.error(f"Movelist failed to generate: {e}")
-    update_option_menu_with_categories(move_list, move_var, move_names)
+# def populate_movelist(move_list: OptionMenu):
+#     try:
+#         response = requests.get(f"http://{config.be_host}:{config.be_port}/movelist", timeout=5)
+#         response.raise_for_status()
+#         moves_json = response.json()
+#         sorted_moves = sorted(moves_json['data'], key=lambda x: x['list_order'])
+#         print(sorted_moves)
+#         for move in sorted_moves:
+#             moves[move["display_name"]] = move["id"]
+#             if move["id"] == -1: move["sepior1"] = -1
+#         move_names = list(moves.keys())
+#     except Exception as e:
+#         logger.error(f"Movelist failed to generate: {e}")
+#     update_option_menu_with_categories(move_list, move_var, move_names)
 
 def are_required_dropdowns_filled():
     return all([
@@ -193,59 +251,6 @@ def are_required_dropdowns_filled():
         opp_vars[1].get().strip() != "N/A",
         stage_vars[1].get().strip() != "N/A",
     ])
-
-def run_parser(dev: int = 0):
-    # output_text.insert(tk.END, "Running log parser...\n")
-    output_text.see(tk.END)
-    run_button.config(state="disabled")
-
-    def worker():
-        try:
-            log_parser.setup_logging()
-            extra_data = {}
-            if are_required_dropdowns_filled():
-                for x in range(3): int(moves.get(move_vars[x].get(), -1))
-                extra_data = {
-                    "game_1_char_pick": int(characters.get("Loxodont", -1)),
-                    "game_2_char_pick": int(characters.get("Loxodont", -1)),
-                    "game_3_char_pick": int(characters.get("Loxodont", -1)),
-                    "game_1_opponent_pick": int(characters.get(opp_vars[0].get(), -1)),
-                    "game_1_stage": int(stages.get(stage_vars[0].get(), -1)),
-                    "game_2_opponent_pick": int(characters.get(opp_vars[1].get(), -1)),
-                    "game_2_stage": int(stages.get(stage_vars[1].get(), -1)),
-                    "game_3_opponent_pick": int(characters.get(opp_vars[2].get(), -1)),
-                    "game_3_stage": int(stages.get(stage_vars[2].get(), -1)),
-                    "game_1_winner": 2 if winner_vars[0].get() else (1 if opp_vars[0].get() != "N/A" else -1),
-                    "game_2_winner": 2 if winner_vars[1].get() else (1 if opp_vars[1].get() != "N/A" else -1),
-                    "game_3_winner": 2 if winner_vars[2].get() else (1 if opp_vars[2].get() != "N/A" else -1),
-                    "game_1_final_move_id": int(moves.get(move_vars[0].get(), -1)),
-                    "game_2_final_move_id": int(moves.get(move_vars[1].get(), -1)),
-                    "game_3_final_move_id": int(moves.get(move_vars[2].get(), -1)),
-                    "opponent_elo": int(opp_elo.get()),
-                    "opponent_name": name_var.get() if name_var.get() is not None else "",
-                    "final_move_id": -1
-                }
-            result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)
-            if result == -1:
-                output_text.insert(tk.END, "No matches found or no new matches to add.\n")
-                output_text.see(tk.END)
-                run_button.config(state="normal")
-                return
-            output_text.insert(tk.END, f"Log parsing complete. Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x.elo_rank_new) for x in result)] if result else ""}\n") # type: ignore
-            output_text.see(tk.END)
-            if cbvar.get():
-                #log_parser.truncate_db(cbvar.get())
-                #output_text.insert(tk.END, "Truncating\n")
-                output_text.see(tk.END)
-        except Exception as e:
-            output_text.insert(tk.END, f"Error: {e}\n")
-            # messagebox.showerror("Error", str(e))
-            traceback.print_exc()
-        finally:
-            run_button.config(state="normal")
-            refresh_top_row()
-
-    threading.Thread(target=worker).start()
 
 def show_debug():
     output_text.insert(tk.END, f"{cbvar.get()}\n")
@@ -265,7 +270,6 @@ def show_debug():
 #     adjust_elo(delta * direction)
 
 def clear_matchup_fields():
-    # for x in range(len(opp_vars)
     for x in opp_vars:
         x.set("N/A")
     for x in stage_vars:
@@ -309,7 +313,58 @@ def generate_json():
     root.clipboard_append(json.dumps(jsond, indent=4))
     root.update()
 
-    
+def run_parser(dev: int = 0):
+    # output_text.insert(tk.END, "Running log parser...\n")
+    output_text.see(tk.END)
+    run_button.config(state="disabled")
+
+    def worker():
+        try:
+            log_parser.setup_logging()
+            extra_data = {}
+            if are_required_dropdowns_filled():
+                for x in range(3): int(moves.get(move_vars[x].get(), -1))
+                extra_data = {
+                    "game_1_char_pick": int(characters.get("Loxodont", -1)),
+                    "game_2_char_pick": int(characters.get("Loxodont", -1)),
+                    "game_3_char_pick": int(characters.get("Loxodont", -1)),
+                    "game_1_opponent_pick": int(characters.get(opp_vars[0].get(), -1)),
+                    "game_1_stage": int(stages.get(stage_vars[0].get(), -1)),
+                    "game_2_opponent_pick": int(characters.get(opp_vars[1].get(), -1)),
+                    "game_2_stage": int(stages.get(stage_vars[1].get(), -1)),
+                    "game_3_opponent_pick": int(characters.get(opp_vars[2].get(), -1)),
+                    "game_3_stage": int(stages.get(stage_vars[2].get(), -1)),
+                    "game_1_winner": 2 if winner_vars[0].get() else (1 if opp_vars[0].get() != "N/A" else -1),
+                    "game_2_winner": 2 if winner_vars[1].get() else (1 if opp_vars[1].get() != "N/A" else -1),
+                    "game_3_winner": 2 if winner_vars[2].get() else (1 if opp_vars[2].get() != "N/A" else -1),
+                    "game_1_final_move_id": int(moves.get(move_vars[0].get(), -1)),
+                    "game_2_final_move_id": int(moves.get(move_vars[1].get(), -1)),
+                    "game_3_final_move_id": int(moves.get(move_vars[2].get(), -1)),
+                    "opponent_elo": int(opp_elo.get()),
+                    "opponent_name": name_var.get() if name_var.get() is not None else "",
+                    "final_move_id": -1
+                }
+            result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)
+            if result == -1:
+                output_text.insert(tk.END, "No matches found or no new matches to add.\n")
+                output_text.see(tk.END)
+                run_button.config(state="normal")
+                return
+            output_text.insert(tk.END, f"Log parsing complete. Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x.elo_rank_new) for x in result)] if result else ""}\n") # type: ignore
+            output_text.see(tk.END)
+            if cbvar.get():
+                output_text.see(tk.END)
+        except Exception as e:
+            output_text.insert(tk.END, f"Error: {e}\n")
+            traceback.print_exc()
+        finally:
+            run_button.config(state="normal")
+            refresh_top_row()
+            name_field.update_autocomplete_list(get_opponent_names())
+
+    threading.Thread(target=worker).start()
+
+
 setup_logging()
 
 root = tk.Tk()
@@ -421,9 +476,10 @@ copy_button.grid(row=1, column=16, padx=10, sticky="e")
 clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields)
 clear_button.grid(row=1, column=18, padx=10, sticky='e')
 
+
 name_label = Label(bottom_frame, text="OppName").grid(row=2, column=17, padx=5, sticky='e')
 name_var = tk.StringVar()
-name_field = Entry(bottom_frame, textvariable=name_var, )
+name_field = AutocompleteEntry(get_opponent_names(), bottom_frame, textvariable=name_var)
 name_field.grid(row=2, column=18, padx=10, sticky='e')
 name_field.bind(sequence="<Button-3>", func=lambda event, var=opp_var: clear_field(event, name_var, ""))
 

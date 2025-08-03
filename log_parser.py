@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 import utils.folders
 from typing import TextIO
 import re
-from db.database import MariaDBInterface
 from datetime import datetime
 import utils.calc_elo as calc_elo
 from utils.match import Match
@@ -13,27 +12,28 @@ import requests
 from pprint import pprint
 import json
 from pydantic import TypeAdapter
-load_dotenv()
+from config import Config
+
 RIVALS_FOLDER = os.path.join(os.path.dirname(os.getenv("APPDATA")), "Local", "Rivals2", "Saved")
 RIVALS_LOG_FOLDER = os.path.join(RIVALS_FOLDER, "Logs")
 
+config = Config()
 logger = logging.getLogger()
 
 def setup_logging():
-    os.makedirs(os.environ.get("LOG_DIR"), exist_ok=True)
+    os.makedirs(config.log_dir, exist_ok=True)
     
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG if int(os.environ.get("RIV2_DEBUG")) else logging.INFO) 
-    logger.info(logger.getEffectiveLevel())
+    logger.setLevel(logging.DEBUG if int(config.debug) else logging.INFO) 
     formatter = logging.Formatter(
         '%(asctime)s - %(module)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
     file_handler = RotatingFileHandler(
-        os.path.join(os.environ.get("LOG_DIR"), os.environ.get("LOG_FILE")), 
-        maxBytes=int(os.environ.get("MAX_LOG_SIZE")), 
-        backupCount=int(os.environ.get("BACKUP_COUNT"))
+        os.path.join(config.log_dir, config.log_file), 
+        maxBytes=int(config.max_log_size), 
+        backupCount=int(config.backup_count)
     )
 
     file_handler.setFormatter(formatter)
@@ -47,7 +47,7 @@ def setup_logging():
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
 
-def search_file(file: TextIO, string: str) -> str:
+def search_file(file: TextIO, string: str):
     lines = []
     file.seek(0)
     for line_no, line in enumerate(file,1):
@@ -58,17 +58,30 @@ def search_file(file: TextIO, string: str) -> str:
     else:
         return False
 
+def see_if_game_exists(match_id, match_date):
+    res = requests.get(f"http://{config.be_host}:{config.be_port}/match-exists?match_number={match_id}")
+    res.raise_for_status()
+    data = {}
+    if res.status_code == 200:
+        data = res.json()
+    else:
+        return False
+    if data['status'] == "OK":
+        logger.debug(f"Game {match_id} exists")
+        return True
+    else:
+        logger.debug(f"Why doesn't {match_id} exist?")
+    return False
+
 def find_rank_in_logs(files: list[str]):
     ranks = []
     data = []
     with open(os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log"), 'r') as f:
-        # logger.debug(f"Reading file: Rivals2.log")
         x = search_file(f, "URivalsRankUpdateMessage::OnReceivedFromServer LocalPlayerIndex")
         if x:
             data.extend(x)
     for file in files:
         with open(os.path.join(RIVALS_LOG_FOLDER, file), 'r') as f:
-            # logger.debug(f"Readering file: {file}")
             x = search_file(f, "URivalsRankUpdateMessage::OnReceivedFromServer LocalPlayerIndex")
             if x:
                 data.extend(x)
@@ -109,69 +122,36 @@ def extract_numbers(line: str, file: str = None) -> Match:
             win_streak_value = 0,
             opponent_estimated_elo =  calc_elo.estimate_opponent_elo(my_elo=int(ranks[1]), elo_change=int(ranks[2]), result=win_loss),
         )
-    # {
-    #         match_date = dt,
-    #         elo_rank_new = -1,
-    #         "elo_rank_old": -1,
-    #         "elo_change": -1900,
-    #         "ranked_game_number": -1,
-    #         "total_wins": -1,
-    #         "win_streak_value": 0,
-    #         "opponent_elo":  -1,
-    #         "game_1_char_pick": -1,
-    #         "game_1_opponent_pick": -1,
-    #         "game_1_stage":  -1,
-    #         "game_1_winner":  -1,
-    #         "game_2_char_pick": -1,
-    #         "game_2_opponent_pick": -1,
-    #         "game_2_stage":  -1,
-    #         "game_2_winner":  -1,
-    #         "game_3_char_pick": -1,
-    #         "game_3_opponent_pick": -1,
-    #         "game_3_stage": -1,
-    #         "game_3_winner": -1
-    #     }
+   
     return result
 
 def post_match(match: Match) -> requests.Response|dict:
     try:
         # logger.debug(f"Posting match: {match.ranked_game_number} to BE")
-        res = requests.post(f"http://{os.getenv('BE_HOST')}:{os.getenv('BE_PORT')}/insert-match{"?debug=1" if os.getenv("DEBUG") else ""}", data=TypeAdapter(Match).dump_json(match))
+        res = requests.post(f"http://{config.be_host}:{config.be_port}/insert-match{"?debug=1" if int(config.debug) else ""}", data=TypeAdapter(Match).dump_json(match))
         return res.json()
     except:
         logger.error(f"Couldn't post match: {match.ranked_game_number} to BE")
         return {"error": "Couldn't post match to BE"}
     
 def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
-    try:
-        if not dev:
-            db = MariaDBInterface(host=os.environ.get('DB_HOST'), port=os.environ.get('DB_PORT'), user=os.environ.get('DB_USER'), password=os.environ.get('DB_PASS'), database=os.environ.get('DB_SCHEMA'))
-        else:
-            db = MariaDBInterface(host=os.environ.get('DEV_DB_HOST'), port=os.environ.get('DEV_DB_PORT'), user=os.environ.get('DEV_DB_USER'), password=os.environ.get('DEV_DB_PASS'), database=os.environ.get('DEV_DB_SCHEMA'))
-    except Exception as err:
-        logger.error(f"Couldn't setup db conn: {err}")
-        return []
-    # logger.debug("Getting log files")
+    logger.debug("Getting log files")
     replay_files = sorted(utils.folders.get_files(RIVALS_LOG_FOLDER))
     if "Rivals2.log" in replay_files:
         replay_files.remove("Rivals2.log")
     logger.debug(f"Total files found: {len(replay_files)}")
 
-    # logger.info("Parsing data from logs")
+    logger.info("Parsing data from logs")
     data = find_rank_in_logs(replay_files)
     count = []
-    try:
-        db.see_if_game_exists(666, datetime.now())
-    except:
-        return -1
     new_matches = []
     for match in data:
-        if not db.see_if_game_exists(match.ranked_game_number, match.match_date):
+        logger.debug(f"Checking game {match.ranked_game_number}")
+        if not see_if_game_exists(match.ranked_game_number, match.match_date):
             new_matches.append(match)
     if len(new_matches) < 1: return count
     for match in new_matches:
         res = None
-        # try:
         if len(new_matches) == 1 and extra_data:
             logger.debug(f"creating new_match, {len(new_matches)}, {extra_data}")
             new_match = Match(
@@ -235,11 +215,8 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                 game_3_final_move_id=match.game_3_final_move_id,
                 final_move_id=match.final_move_id
             )
-        # except Exception as e:
-        #     logger.error({e})
-        #     return count
+
         try:
-            # db.insert_match(match)
             if not dev:
                 logger.debug(f"Posting match: {new_match.ranked_game_number} to BE")
                 res = post_match(new_match)
@@ -252,17 +229,10 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
             logger.error(f"Something bonked lol: {e}")
         count.append(match)
 
-    logger.info("Closing DB and exiting")
-    db.close()
     return count
 
-def truncate_db(dev: int) -> None:
-    if dev:
-        db = MariaDBInterface(host=os.environ.get('DEV_DB_HOST'), port=os.environ.get('DEV_DB_PORT'), user=os.environ.get('DEV_DB_USER'), password=os.environ.get('DEV_DB_PASS'), database=os.environ.get('DEV_DB_SCHEMA'))
-        db.truncate_db(os.environ.get('DEV_DB_SCHEMA'), "matches")
-    return 0
 def main():
-    parse_log(dev=int(os.environ.get("RIV2_DEBUG", 0)))
+    parse_log(dev=int(config.debug))
 
     return 0
 

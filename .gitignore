@@ -201,3 +201,4 @@ bin/*
 *.sqlite
 dump.sql
 .vscode/settings.json
+config.ini
