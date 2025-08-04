@@ -60,18 +60,11 @@ def search_file(file: TextIO, string: str):
 
 def see_if_game_exists(match_id, match_date):
     res = requests.get(f"http://{config.be_host}:{config.be_port}/match-exists?match_number={match_id}")
-    res.raise_for_status()
-    data = {}
     if res.status_code == 200:
-        data = res.json()
-    else:
-        return False
-    if data['status'] == "OK":
-        logger.debug(f"Game {match_id} exists")
         return True
     else:
-        logger.debug(f"Why doesn't {match_id} exist?")
-    return False
+        logger.debug(f"Got {res.status_code}")
+        return False
 
 def find_rank_in_logs(files: list[str]):
     ranks = []
