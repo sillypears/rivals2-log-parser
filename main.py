@@ -20,6 +20,7 @@ logger = logging.getLogger()
 characters = {}
 stages = {}
 moves = {}
+top_moves = []
 STARTING_DEFAULT = 1000
 
 class AutocompleteEntry(tk.Entry):
@@ -76,6 +77,13 @@ class AutocompleteEntry(tk.Entry):
         """Call this to refresh the list of autocomplete names."""
         self.autocomplete_list = new_list
 
+def get_final_move_top_list() -> dict:
+    res = requests.get(f"http://{config.be_host}:{config.be_port}/movelist/top")
+    res.raise_for_status()
+    if res.status_code == 200:
+        json = res.json()
+        return json
+    return {"status":"FAIL","data":{"current_elo":-2,"tier":"N/A","tier_short":"N/A", "last_game_number": -2}}
 
 def get_current_elo() -> dict:
     res = requests.get(f"http://{config.be_host}:{config.be_port}/current_tier")
@@ -137,13 +145,14 @@ def update_option_menu(option_menu: OptionMenu, var, options):
 def update_option_menu_with_category_separators(option_menu: OptionMenu, var: tk.StringVar, sorted_moves: list[dict]):
     menu: tk.Menu = option_menu["menu"]
     menu.delete(0, "end")
-
+    top_moves = [x["final_move_name"] for x in get_final_move_top_list()['data']]
     last_category = sorted_moves[0]["category"] if sorted_moves else None
 
     for i, move in enumerate(sorted_moves):
         display_name = move["display_name"]
         category = move["category"]
-
+        if display_name in top_moves:
+            display_name += " *"
         menu.add_command(label=display_name, command=lambda v=display_name: var.set(v))
 
         next_move = sorted_moves[i + 1] if i + 1 < len(sorted_moves) else None
