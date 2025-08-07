@@ -12,7 +12,7 @@ import log_parser
 from datetime import datetime
 from utils.calc_elo import estimate_opponent_elo
 import json
-
+import sys, subprocess
 config = Config()
 
 logger = logging.getLogger()
@@ -76,6 +76,15 @@ class AutocompleteEntry(tk.Entry):
     def update_autocomplete_list(self, new_list: list[str]):
         """Call this to refresh the list of autocomplete names."""
         self.autocomplete_list = new_list
+
+def open_log_file():
+    log_path = os.path.join(config.log_dir, config.log_file)
+    if sys.platform.startswith('darwin'):  # macOS
+        subprocess.call(('open', log_path))
+    elif os.name == 'nt':  # Windows
+        os.startfile(log_path)
+    elif os.name == 'posix':  # Linux
+        subprocess.call(('xdg-open', log_path))
 
 def get_final_move_top_list() -> dict:
     res = requests.get(f"http://{config.be_host}:{config.be_port}/movelist/top")
@@ -307,13 +316,12 @@ def generate_json():
     jsond["total_wins"] = int(elo_values["data"]["total_wins"]) + 1 if jsond["match_win"] else int(elo_values["data"]["total_wins"])
     jsond["win_streak_value"] = int(elo_values["data"]["win_streak_value"]) + 1 if jsond["match_win"] else int(elo_values["data"]["win_streak_value"])
     jsond["opponent_elo"] = int(opp_elo.get())
-    jsond["opponent_estimated_elo"] = estimate_opponent_elo(jsond["elo_rank_new"], jsond["elo_change"], jsond["match_win"])
     jsond["opponent_name"] = name_var.get() if name_var.get() is not None else ""
     for x in range(3):
         jsond[f"game_{x+1}_char_pick"] = 2
         jsond[f"game_{x+1}_opponent_pick"] = int(characters.get(opp_vars[x].get(), -2))
         jsond[f"game_{x+1}_stage"] = int(stages.get(stage_vars[x].get(), -2))
-        jsond[f"game_{x+1}_final_move_id"] = int(moves.get(move_vars[x].get(), -2))
+        jsond[f"game_{x+1}_final_move_id"] = int(moves.get(move_vars[x].get().replace(" *", ""), -2))
         jsond[f"game_{x+1}_winner"] = 2 if winner_vars[x].get() else (1 if opp_vars[x].get() != "N/A" else -2)
     jsond["final_move_id"] = -2
     jsond["notes"] = "Added via JSON lol"
@@ -346,9 +354,9 @@ def run_parser(dev: int = 0):
                     "game_1_winner": 2 if winner_vars[0].get() else (1 if opp_vars[0].get() != "N/A" else -1),
                     "game_2_winner": 2 if winner_vars[1].get() else (1 if opp_vars[1].get() != "N/A" else -1),
                     "game_3_winner": 2 if winner_vars[2].get() else (1 if opp_vars[2].get() != "N/A" else -1),
-                    "game_1_final_move_id": int(moves.get(move_vars[0].get(), -1)),
-                    "game_2_final_move_id": int(moves.get(move_vars[1].get(), -1)),
-                    "game_3_final_move_id": int(moves.get(move_vars[2].get(), -1)),
+                    "game_1_final_move_id": int(moves.get(move_vars[0].get().replace(" *", ""), -1)),
+                    "game_2_final_move_id": int(moves.get(move_vars[1].get().replace(" *", ""), -1)),
+                    "game_3_final_move_id": int(moves.get(move_vars[2].get().replace(" *", ""), -1)),
                     "opponent_elo": int(opp_elo.get()),
                     "opponent_name": name_var.get() if name_var.get() is not None else "",
                     "final_move_id": -1
@@ -401,6 +409,7 @@ run_button.pack(side=tk.LEFT)
 spacer = Label(topframe)
 spacer.pack(side=tk.LEFT, expand=True)
 
+Button(topframe, text="Log", command=open_log_file).pack(side=tk.RIGHT, pady=10)
 cbvar = tk.IntVar()
 run_switch = Checkbutton(topframe, text="Debug",  variable=cbvar)
 run_switch.pack(side=tk.RIGHT)

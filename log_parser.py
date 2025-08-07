@@ -105,7 +105,7 @@ def extract_numbers(line: str, file: str = None) -> Match:
             ranked_game_number = int(ranks[3]),
             total_wins = int(ranks[4]),
             win_streak_value = int(ranks[5]),
-            opponent_estimated_elo =  calc_elo.estimate_opponent_elo(my_elo=int(ranks[1]), elo_change=int(ranks[2]), result=win_loss),
+            opponent_estimated_elo = -999
         )
     except:
         logger.error("Couldn't get ranks")
@@ -113,7 +113,7 @@ def extract_numbers(line: str, file: str = None) -> Match:
             match_date = dt,
             elo_change = -1900,
             win_streak_value = 0,
-            opponent_estimated_elo =  calc_elo.estimate_opponent_elo(my_elo=int(ranks[1]), elo_change=int(ranks[2]), result=win_loss),
+            opponent_estimated_elo = -999
         )
    
     return result
@@ -158,7 +158,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                 total_wins=match.total_wins,
                 win_streak_value=match.win_streak_value,
                 opponent_elo=extra_data["opponent_elo"],
-                opponent_estimated_elo=match.opponent_estimated_elo,
+                opponent_estimated_elo=calc_elo.estimate_opponent_elo(my_elo=match.elo_rank_new, elo_change=match.elo_change, result=1 if match.elo_change >= 0 else 0, opponent_elo=extra_data["opponent_elo"]),
                 opponent_name=extra_data["opponent_name"],
                 game_1_char_pick=extra_data["game_1_char_pick"],
                 game_1_opponent_pick=extra_data["game_1_opponent_pick"],
@@ -189,7 +189,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                 total_wins=match.total_wins,
                 win_streak_value=match.win_streak_value,
                 opponent_elo=match.opponent_elo,
-                opponent_estimated_elo=match.opponent_estimated_elo,
+                opponent_estimated_elo=calc_elo.estimate_opponent_elo(my_elo=match.elo_rank_new, elo_change=match.elo_change, result=1 if match.elo_change >= 0 else 0, opponent_elo=1000, k=24),
                 opponent_name=match.opponent_name,
                 game_1_char_pick=match.game_1_char_pick,
                 game_1_opponent_pick=match.game_1_opponent_pick,
@@ -217,7 +217,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
             logger.error(f"why did posting fail?? {e}|{res}")
         try:
             if not dev:
-                logger.info(f"Inserting match: Game: {match["ranked_game_number"]} Rank: {match["elo_rank_new"]}, res: {res}")
+                logger.info(f"Inserting match: Game: {match.ranked_game_number} Rank: {match.elo_rank_new}, res: {res}")
         except Exception as e:
             logger.error(f"Something bonked lol: {e}")
         count.append(match)
