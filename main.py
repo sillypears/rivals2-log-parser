@@ -109,7 +109,7 @@ def refresh_top_row() -> None:
 def get_opponent_names():
     response = requests.get(f"http://{config.be_host}:{config.be_port}/opponent_names", timeout=5)
     response.raise_for_status()
-    return response.json()["data"]
+    return response.json()["data"]['names']
 
 def setup_logging():
     os.makedirs(config.log_dir, exist_ok=True)
