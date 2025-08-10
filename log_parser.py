@@ -120,7 +120,7 @@ def extract_numbers(line: str, file: str = None) -> Match:
 
 def post_match(match: Match) -> requests.Response|dict:
     try:
-        # logger.debug(f"Posting match: {match.ranked_game_number} to BE")
+        logger.debug(f"Posting match: {match.ranked_game_number} to BE")
         res = requests.post(f"http://{config.be_host}:{config.be_port}/insert-match{"?debug=1" if int(config.debug) else ""}", data=TypeAdapter(Match).dump_json(match))
         return res.json()
     except:
