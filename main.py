@@ -386,7 +386,6 @@ setup_logging()
 
 root = tk.Tk()
 root.title("Rivals 2 Log Parser")
-root.resizable(0,0) #type: ignore
 
 # dropdowns
 opp_vars = [] * 3 
@@ -469,6 +468,10 @@ for x in range(3):
     winner_checkbox = Checkbutton(bottom_frame, text="OppWins", variable=winner_var)
     move_dropdown = OptionMenu(bottom_frame, move_var, "Loading...")
     
+    opp_dropdown.config(width=10)
+    stage_dropdown.config(width=10)
+    move_dropdown.config(width=10)
+
     opp_dropdown.bind(sequence="<Button-3>", func=lambda event, var=opp_var: clear_field(event, var, "N/A"))
     stage_dropdown.bind(sequence="<Button-3>", func=lambda event, var=stage_var: clear_field(event, var, "N/A"))
     move_dropdown.bind(sequence="<Button-3>", func=lambda event, var=move_var: clear_field(event, var, "N/A"))
@@ -504,6 +507,10 @@ name_field.bind(sequence="<Button-3>", func=lambda event, var=opp_var: clear_fie
 style = Style()
 style.theme_use(themename="classic")
 populate_dropdowns(opp_dropdowns, stage_dropdowns, move_dropdowns)
+
+root.update_idletasks()
+root.geometry(root.geometry())
+root.resizable(False, False)
 
 root.mainloop()
 
