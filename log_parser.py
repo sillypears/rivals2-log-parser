@@ -129,9 +129,10 @@ def post_match(match: Match) -> requests.Response|dict:
     
 def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
     logger.debug("Getting log files")
-    replay_files = sorted(utils.folders.get_files(RIVALS_LOG_FOLDER))
-    if "Rivals2.log" in replay_files:
-        replay_files.remove("Rivals2.log")
+    # replay_files = sorted(utils.folders.get_files(RIVALS_LOG_FOLDER))
+    # if "Rivals2.log" in replay_files:
+    #     replay_files.remove("Rivals2.log")
+    replay_files = []
     logger.debug(f"Total files found: {len(replay_files)}")
 
     logger.info("Parsing data from logs")
