@@ -77,8 +77,22 @@ class AutocompleteEntry(tk.Entry):
         """Call this to refresh the list of autocomplete names."""
         self.autocomplete_list = new_list
 
-def open_log_file():
-    log_path = os.path.join(config.log_dir, config.log_file)
+def open_log_file(file_name):
+    log_path = None
+    if file_name == "app":
+        log_path = os.path.join(config.log_dir, config.log_file)
+    if file_name == "rivals":
+        log_path = os.path.expanduser("~")
+        if sys.platform.startswith('darwin'):  # macOS
+            pass
+        elif os.name == "nt":
+            log_path = os.path.join(log_path, "AppData", "Local", "Rivals2", "Saved", "Logs", "Rivals2.log" )
+        elif os.name == 'posix':  # Linux
+            pass
+        else:
+            return
+    print(log_path)
+    if log_path == None: return
     if sys.platform.startswith('darwin'):  # macOS
         subprocess.call(('open', log_path))
     elif os.name == 'nt':  # Windows
@@ -402,18 +416,20 @@ frame.pack(fill="both", expand=True)
 topframe = Frame(frame)
 topframe.pack(fill="both", expand=True)
 
-run_button = Button(topframe, text="Run Log Parser", command=run_parser)
+run_button = Button(topframe, text="Run Log Parser", command=run_parser, takefocus=False)
 run_button.pack(side=tk.LEFT)
 
 spacer = Label(topframe)
 spacer.pack(side=tk.LEFT, expand=True)
 
-Button(topframe, text="Log", command=open_log_file).pack(side=tk.RIGHT, pady=10)
+Button(topframe, text="App Log", command=lambda: open_log_file("app"), takefocus=False).pack(side=tk.RIGHT, pady=10)
+Button(topframe, text="Rivals Log", command=lambda: open_log_file("rivals"), takefocus=False).pack(side=tk.RIGHT, pady=10)
+
 cbvar = tk.IntVar()
-run_switch = Checkbutton(topframe, text="Debug",  variable=cbvar)
+run_switch = Checkbutton(topframe, text="Debug",  variable=cbvar, takefocus=False)
 run_switch.pack(side=tk.RIGHT)
 
-output_text = scrolledtext.ScrolledText(frame, width=80, height=20)
+output_text = scrolledtext.ScrolledText(frame, width=80, height=20, takefocus=False)
 output_text.pack(fill="both", expand=True)
 
 bottom_frame = Frame(root, padding=10)
@@ -428,16 +444,16 @@ opp_elo_entry.grid(row=1, column=1, padx=5)
 Label(bottom_frame, text="My New ELO").grid(row=0, column=2)
 my_elo = tk.IntVar()
 my_elo.set(int(get_current_elo()["data"]["current_elo"]))
-my_elo_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=my_elo, width=10)
+my_elo_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=my_elo, width=10, takefocus=False)
 my_elo_entry.grid(row=1, column=2, padx=5, sticky="w")
 
 Label(bottom_frame, text="ELO Delta").grid(row=0, column=3 )
 change_elo = tk.IntVar()
 change_elo.set(0)
-change_elo_entry = Spinbox(bottom_frame, from_=-50, to=50, textvariable=change_elo, width=10)
+change_elo_entry = Spinbox(bottom_frame, from_=-50, to=50, textvariable=change_elo, width=10, takefocus=False)
 change_elo_entry.grid(row=1, column=3, padx=5, sticky="w")
 
-refresh_button = Button(bottom_frame, text="Refresh", command=refresh_top_row)
+refresh_button = Button(bottom_frame, text="Refresh", command=refresh_top_row, takefocus=False)
 refresh_button.grid(row=1, column=4, padx=10, sticky="w")
 
 
@@ -481,6 +497,11 @@ for x in range(3):
     winner_checkbox.grid(row=x+delta, column=4, padx=5, sticky="w")
     move_dropdown.grid(row=x+delta, column=3, padx=5, sticky="w")
 
+    opp_dropdown.config(takefocus=False)
+    stage_dropdown.config(takefocus=False)
+    move_dropdown.config(takefocus=False)
+    winner_checkbox.config(takefocus=False)
+    
     opp_vars.append(opp_var)
     stage_vars.append(stage_var)
     winner_vars.append(winner_var)
@@ -491,10 +512,10 @@ for x in range(3):
     move_dropdowns.append(move_dropdown)
 
 
-copy_button = Button(bottom_frame, text="Copy", command=generate_json)
+copy_button = Button(bottom_frame, text="Copy", command=generate_json, takefocus=False)
 copy_button.grid(row=1, column=16, padx=10, sticky="e")
 
-clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields)
+clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields, takefocus=False)
 clear_button.grid(row=1, column=18, padx=10, sticky='e')
 
 
@@ -512,5 +533,6 @@ root.update_idletasks()
 root.geometry(root.geometry())
 root.resizable(False, False)
 
+name_field.focus_set()
 root.mainloop()
 
