@@ -199,8 +199,10 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
             if char["id"] == -1: characters["sepior1"] = -1
         character_names = list(characters.keys())
     except Exception as e:
+        output_text.configure(state="normal")
         output_text.insert(tk.END, f"Error fetching character data: {e}\n")
         output_text.see(tk.END)
+        output_text.configure(state="disabled")
         logger.error(f"Charlist failed to generate: {e}")
 
     try:
@@ -225,8 +227,10 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
                     
         stage_names = list(stages.keys())
     except Exception as e:
+        output_text.configure(state="normal")
         output_text.insert(tk.END, f"Error fetching character data: {e}\n")
         output_text.see(tk.END)
+        output_text.configure(state="disabled")        
         logger.error(f"Stagelist failed to generate: {e}")
 
     try:
@@ -240,12 +244,16 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
                 moves["sepior"] = -1
         move_names = list(moves.keys())
     except Exception as e:
+        output_text.configure(state="normal")
         output_text.insert(tk.END, f"Error fetching character data: {e}\n")
         output_text.see(tk.END)
+        output_text.configure(state="disabled")
         logger.error(f"Movelist failed to generate: {e}")
-
+    
+    output_text.configure(state="normal")
     output_text.insert(tk.END, f"Fetched {len([x for x in characters_json['data'] if x['list_order'] > 0])} characters, {len([x for x in stage_json['data'] if x['list_order'] > 0])} stages and {len([x for x in moves_json['data'] if x['list_order'] > 0])} moves.\n")
     output_text.see(tk.END)
+    output_text.configure(state="disabled")
 
     try:            
         for x in range(3):
@@ -258,8 +266,10 @@ def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[Op
 
 
     except Exception as e:
+        output_text.configure(state="normal")
         output_text.insert(tk.END, f"Error updating data: {e}\n")
         output_text.see(tk.END)
+        output_text.configure(state="disabled")
 
 # def populate_movelist(move_list: OptionMenu):
 #     try:
@@ -285,8 +295,9 @@ def are_required_dropdowns_filled():
     ])
 
 def show_debug():
+    output_text.configure(state="normal")
     output_text.insert(tk.END, f"{cbvar.get()}\n")
-
+    output_text.configure(state="disabled")
 # def adjust_elo(delta):
 #     try:
 #         current = opp_elo.get()
@@ -346,7 +357,9 @@ def generate_json():
 
 def run_parser(dev: int = 0):
     # output_text.insert(tk.END, "Running log parser...\n")
+    output_text.configure(state="normal")
     output_text.see(tk.END)
+    output_text.configure(state="disabled")
     run_button.config(state="disabled")
 
     def worker():
@@ -377,16 +390,22 @@ def run_parser(dev: int = 0):
                 }
             result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)
             if result == -1:
+                output_text.configure(state="normal")
                 output_text.insert(tk.END, "No matches found or no new matches to add.\n")
                 output_text.see(tk.END)
+                output_text.configure(state="disabled")
                 run_button.config(state="normal")
                 return
+            output_text.configure(state="normal")
             output_text.insert(tk.END, f"Log parsing complete. Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x.elo_rank_new) for x in result)] if result else ""}\n") # type: ignore
             output_text.see(tk.END)
+            output_text.configure(state="disabled")
             if cbvar.get():
                 output_text.see(tk.END)
         except Exception as e:
+            output_text.configure(state="normal")
             output_text.insert(tk.END, f"Error: {e}\n")
+            output_text.configure(state="disabled")
             traceback.print_exc()
         finally:
             run_button.config(state="normal")
@@ -431,6 +450,7 @@ run_switch.pack(side=tk.RIGHT)
 
 output_text = scrolledtext.ScrolledText(frame, width=80, height=20, takefocus=False)
 output_text.pack(fill="both", expand=True)
+output_text.configure(state='disabled')
 
 bottom_frame = Frame(root, padding=10)
 bottom_frame.pack(fill="x")
