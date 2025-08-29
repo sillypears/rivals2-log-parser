@@ -553,6 +553,14 @@ root.update_idletasks()
 root.geometry(root.geometry())
 root.resizable(False, False)
 
+root.update_idletasks()
+screen_width = root.winfo_screenwidth()
+screen_height = root.winfo_screenheight()
+window_width = root.winfo_width()
+window_height = root.winfo_height()
+x = screen_width - window_width
+y = 0
+root.geometry(f"+{x}+{y}")
 name_field.focus_set()
 root.mainloop()
 
