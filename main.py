@@ -344,10 +344,10 @@ def generate_json():
     jsond["opponent_name"] = name_var.get() if name_var.get() is not None else ""
     for x in range(3):
         jsond[f"game_{x+1}_char_pick"] = 2
-        jsond[f"game_{x+1}_opponent_pick"] = int(characters.get(opp_vars[x].get(), -2))
-        jsond[f"game_{x+1}_stage"] = int(stages.get(stage_vars[x].get(), -2))
-        jsond[f"game_{x+1}_final_move_id"] = int(moves.get(move_vars[x].get().replace(" *", ""), -2))
-        jsond[f"game_{x+1}_winner"] = 2 if winner_vars[x].get() else (1 if opp_vars[x].get() != "N/A" else -2)
+        jsond[f"game_{x+1}_opponent_pick"] = int(characters.get(opp_vars[x].get(), -1))
+        jsond[f"game_{x+1}_stage"] = int(stages.get(stage_vars[x].get(), -1))
+        jsond[f"game_{x+1}_final_move_id"] = int(moves.get(move_vars[x].get().replace(" *", ""), -1))
+        jsond[f"game_{x+1}_winner"] = 2 if winner_vars[x].get() else (1 if opp_vars[x].get() != "N/A" else -1)
     jsond["final_move_id"] = -2
     jsond["notes"] = "Added via JSON lol"
     logger.debug(json.dumps(jsond))
