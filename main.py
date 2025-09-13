@@ -21,7 +21,7 @@ characters = {}
 stages = {}
 moves = {}
 top_moves = []
-STARTING_DEFAULT = 1000
+STARTING_DEFAULT = config.opp_dir
 
 class AutocompleteEntry(tk.Entry):
     def __init__(self, autocomplete_list, *args, **kwargs):

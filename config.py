@@ -66,3 +66,6 @@ class Config:
     def debug(self):
         return bool(int(self.config['app']['debug']))
 
+    @property
+    def opp_dir(self):
+        return int(self.config['app']['opp_default'])
