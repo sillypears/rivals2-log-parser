@@ -79,6 +79,8 @@ class AutocompleteEntry(tk.Entry):
 
 def open_log_file(file_name):
     log_path = None
+    if file_name == "config":
+        log_path = os.path.join("config.ini")
     if file_name == "app":
         log_path = os.path.join(config.log_dir, config.log_file)
     if file_name == "rivals":
@@ -441,6 +443,7 @@ run_button.pack(side=tk.LEFT)
 spacer = Label(topframe)
 spacer.pack(side=tk.LEFT, expand=True)
 
+Button(topframe, text="Config", command=lambda: open_log_file("config"), takefocus=False).pack(side=tk.RIGHT, pady=10)
 Button(topframe, text="App Log", command=lambda: open_log_file("app"), takefocus=False).pack(side=tk.RIGHT, pady=10)
 Button(topframe, text="Rivals Log", command=lambda: open_log_file("rivals"), takefocus=False).pack(side=tk.RIGHT, pady=10)
 
