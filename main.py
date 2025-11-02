@@ -399,7 +399,7 @@ def run_parser(dev: int = 0):
                 run_button.config(state="normal")
                 return
             output_text.configure(state="normal")
-            output_text.insert(tk.END, f"Log parsing complete. Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(str(x.elo_rank_new) for x in result)] if result else ""}\n") # type: ignore
+            output_text.insert(tk.END, f"Log parsed. Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(f"{str(x.elo_rank_new)}({str(x.elo_change)})" for x in result)] if result else ""}\n") # type: ignore
             output_text.see(tk.END)
             output_text.configure(state="disabled")
             if cbvar.get():
@@ -451,7 +451,7 @@ cbvar = tk.IntVar()
 run_switch = Checkbutton(topframe, text="Debug",  variable=cbvar, takefocus=False)
 run_switch.pack(side=tk.RIGHT)
 
-output_text = scrolledtext.ScrolledText(frame, width=80, height=20, takefocus=False)
+output_text = scrolledtext.ScrolledText(frame, width=60, height=20, takefocus=False)
 output_text.pack(fill="both", expand=True)
 output_text.configure(state='disabled')
 
