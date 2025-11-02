@@ -1,0 +1,23 @@
+[project]
+name = "rivals2_replay_parser"
+version = "0.1.0"
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+dev = [
+    "taskipy>=1.12",
+    "pyinstaller==6.14.1",
+    "pyinstaller-hooks-contrib==2025.5"
+]
+
+[project.scripts]
+build = "taskipy build"
+clean = "taskipy clean"
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.taskipy.tasks]
+build = "pyinstaller --onefile --windowed --add-data \"config.ini;.\" main.py"
+clean = "rm -rf build dist __pycache__ *.spec"
