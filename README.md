@@ -1,5 +1,6 @@
 # lolhi
 
+![alt](images/docs/app.png)
 ## Requirements
 
 1. [GUI for Logging](https://github.com/sillypears/rivals2-log-parser)
