@@ -13,6 +13,7 @@ from pprint import pprint
 import json
 from pydantic import TypeAdapter
 from config import Config
+from match_duration import roll_up_durations
 
 RIVALS_FOLDER = os.path.join(os.path.dirname(os.getenv("APPDATA")), "Local", "Rivals2", "Saved")
 RIVALS_LOG_FOLDER = os.path.join(RIVALS_FOLDER, "Logs")
@@ -69,12 +70,12 @@ def see_if_game_exists(match_id, match_date):
 def find_rank_in_logs(files: list[str]):
     ranks = []
     data = []
-    with open(os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log"), 'r') as f:
-        x = search_file(f, "URivalsRankUpdateMessage::OnReceivedFromServer LocalPlayerIndex")
-        if x:
-            data.extend(x)
+    # with open(os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log"), 'r') as f:
+    #     x = search_file(f, "URivalsRankUpdateMessage::OnReceivedFromServer LocalPlayerIndex")
+    #     if x:
+    #         data.extend(x)
     for file in files:
-        with open(os.path.join(RIVALS_LOG_FOLDER, file), 'r') as f:
+        with open(file, 'r') as f:
             x = search_file(f, "URivalsRankUpdateMessage::OnReceivedFromServer LocalPlayerIndex")
             if x:
                 data.extend(x)
@@ -132,7 +133,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
     # replay_files = sorted(utils.folders.get_files(RIVALS_LOG_FOLDER))
     # if "Rivals2.log" in replay_files:
     #     replay_files.remove("Rivals2.log")
-    replay_files = []
+    replay_files = [os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log")]
     logger.debug(f"Total files found: {len(replay_files)}")
 
     logger.info("Parsing data from logs")
@@ -143,6 +144,8 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
         logger.debug(f"Checking game {match.ranked_game_number}")
         if not see_if_game_exists(match.ranked_game_number, match.match_date):
             new_matches.append(match)
+    potential_times = roll_up_durations(replay_files)
+    logger.debug(potential_times)
     if len(new_matches) < 1: return count
     for match in new_matches:
         res = None
