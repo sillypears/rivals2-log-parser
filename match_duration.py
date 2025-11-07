@@ -2,7 +2,7 @@ import re
 duration_re = re.compile(r'RivalsCharacterXpEndMatchReportMessage::OnReceivedFromServer LocalPlayerIndex 0, matchDuration (\d+)')
 rank_update_re = re.compile(r'URivalsRankUpdateMessage::OnReceivedFromServer .*: .*?, .*?, .*?, (\d+),')
 
-def roll_up_durations(files: list):
+def roll_up_durations(files: list) -> dict:
     # Only match RivalsCharacterXpEndMatchReportMessage durations and RankUpdate summaries
     duration_re = re.compile(
         r"RivalsCharacterXpEndMatchReportMessage::OnReceivedFromServer LocalPlayerIndex 0, matchDuration (\d+)"

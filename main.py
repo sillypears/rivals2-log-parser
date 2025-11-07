@@ -9,10 +9,12 @@ from config import Config
 import requests
 import traceback
 import log_parser
-from datetime import datetime
+from datetime import datetime, timezone
 from utils.calc_elo import estimate_opponent_elo
 import json
 import sys, subprocess
+from match_duration import roll_up_durations
+from log_parser import RIVALS_LOG_FOLDER
 config = Config()
 
 logger = logging.getLogger()
@@ -121,6 +123,19 @@ def get_current_elo() -> dict:
 def refresh_top_row() -> None:
     my_elo.set(get_current_elo()["data"]["current_elo"])
     change_elo.set(0)
+
+def get_match_times() -> None:
+    data = roll_up_durations([os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log")])
+    if not data:
+        return
+    output_text.configure(state="normal")
+    output_text.insert(tk.END, f"{str(data)}\n")
+    output_text.see(tk.END)
+    output_text.configure(state="disabled")
+    last = data[list(data.keys())[-1]]['durations']
+    for i, d in enumerate(duration_entries):
+        d.set(int(last[i]))
+
 
 def get_opponent_names():
     response = requests.get(f"http://{config.be_host}:{config.be_port}/opponent_names", timeout=5)
@@ -333,7 +348,7 @@ def clear_field(event, field_name_var: tk.StringVar, value: str):
 def generate_json():
     elo_values = get_current_elo()
     jsond = {}
-    jsond["match_date"] = datetime.now().isoformat(timespec="seconds")
+    jsond["match_date"] = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
     jsond["elo_rank_new"] = int(my_elo.get())
     jsond["elo_change"] = int(change_elo.get())
     jsond["elo_rank_old"] = jsond["elo_rank_new"] - jsond["elo_change"]
@@ -350,6 +365,7 @@ def generate_json():
         jsond[f"game_{x+1}_stage"] = int(stages.get(stage_vars[x].get(), -1))
         jsond[f"game_{x+1}_final_move_id"] = int(moves.get(move_vars[x].get().replace(" *", ""), -1))
         jsond[f"game_{x+1}_winner"] = 2 if winner_vars[x].get() else (1 if opp_vars[x].get() != "N/A" else -1)
+        jsond[f"game_{x+1}_duration"] = int(duration_vars[x].get())
     jsond["final_move_id"] = -2
     jsond["notes"] = "Added via JSON lol"
     logger.debug(json.dumps(jsond))
@@ -430,6 +446,8 @@ stage_dropdowns: list[OptionMenu] = []
 winner_vars = []
 move_dropdowns: list[OptionMenu] = []
 move_vars = []
+duration_vars = []
+duration_entries = []
 
 frame = Frame(root, padding=10)
 frame.pack(fill="both", expand=True)
@@ -479,6 +497,14 @@ change_elo_entry.grid(row=1, column=3, padx=5, sticky="w")
 refresh_button = Button(bottom_frame, text="Refresh", command=refresh_top_row, takefocus=False)
 refresh_button.grid(row=1, column=4, padx=10, sticky="w")
 
+times_button = Button(bottom_frame, text="Durations", command=get_match_times, takefocus=False)
+times_button.grid(row=1, column=6, padx=10, sticky="w")
+
+copy_button = Button(bottom_frame, text="Copy", command=generate_json, takefocus=False)
+copy_button.grid(row=1, column=16, padx=10, sticky="e")
+
+clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields, takefocus=False)
+clear_button.grid(row=1, column=18, padx=10, sticky='e')
 
 Label(bottom_frame, text=f"").grid(row=2, column=0, sticky='n')
 Label(bottom_frame, text=f"OppChar").grid(row=2, column=1, sticky='n')
@@ -497,6 +523,7 @@ for x in range(3):
     stage_var = tk.StringVar()
     winner_var = tk.BooleanVar()
     move_var = tk.StringVar()
+    duration_var = tk.IntVar()
 
     opp_dropdown = OptionMenu(bottom_frame, opp_var, "Loading...")
     if x == 0:
@@ -506,6 +533,7 @@ for x in range(3):
     stage_dropdown = OptionMenu(bottom_frame, stage_var, "Loading...")
     winner_checkbox = Checkbutton(bottom_frame, text="OppWins", variable=winner_var)
     move_dropdown = OptionMenu(bottom_frame, move_var, "Loading...")
+    duration_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=duration_var, width=10)
     
     opp_dropdown.config(width=10)
     stage_dropdown.config(width=10)
@@ -514,11 +542,13 @@ for x in range(3):
     opp_dropdown.bind(sequence="<Button-3>", func=lambda event, var=opp_var: clear_field(event, var, "N/A"))
     stage_dropdown.bind(sequence="<Button-3>", func=lambda event, var=stage_var: clear_field(event, var, "N/A"))
     move_dropdown.bind(sequence="<Button-3>", func=lambda event, var=move_var: clear_field(event, var, "N/A"))
+    duration_entry.bind(sequence="<Button-3>", func=lambda event, var=duration_var: clear_field(event, var, "-1"))
 
     opp_dropdown.grid(row=x+delta, column=1, padx=5, sticky="w")
     stage_dropdown.grid(row=x+delta, column=2, padx=5, sticky="w")
     winner_checkbox.grid(row=x+delta, column=4, padx=5, sticky="w")
     move_dropdown.grid(row=x+delta, column=3, padx=5, sticky="w")
+    duration_entry.grid(row=x+delta, column=5, padx=5, sticky="w")
 
     opp_dropdown.config(takefocus=False)
     stage_dropdown.config(takefocus=False)
@@ -529,17 +559,12 @@ for x in range(3):
     stage_vars.append(stage_var)
     winner_vars.append(winner_var)
     move_vars.append(move_var)
+    duration_vars.append(duration_var)
 
     opp_dropdowns.append(opp_dropdown)
     stage_dropdowns.append(stage_dropdown)
     move_dropdowns.append(move_dropdown)
-
-
-copy_button = Button(bottom_frame, text="Copy", command=generate_json, takefocus=False)
-copy_button.grid(row=1, column=16, padx=10, sticky="e")
-
-clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields, takefocus=False)
-clear_button.grid(row=1, column=18, padx=10, sticky='e')
+    duration_entries.append(duration_entry)
 
 
 name_label = Label(bottom_frame, text="OppName").grid(row=2, column=17, padx=5, sticky='e')
