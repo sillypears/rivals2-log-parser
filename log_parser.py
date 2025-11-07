@@ -169,16 +169,19 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                 game_1_stage=extra_data["game_1_stage"],
                 game_1_winner=extra_data["game_1_winner"],
                 game_1_final_move_id=extra_data["game_1_final_move_id"],
+                game_1_duration=extra_data["game_1_duration"],
                 game_2_char_pick=extra_data["game_2_char_pick"],
                 game_2_opponent_pick=extra_data["game_2_opponent_pick"],
                 game_2_stage=extra_data["game_2_stage"],
                 game_2_winner=extra_data["game_2_winner"],
                 game_2_final_move_id=extra_data["game_2_final_move_id"],
+                game_2_duration=extra_data["game_2_duration"],
                 game_3_char_pick=extra_data["game_3_char_pick"],
                 game_3_opponent_pick=extra_data["game_3_opponent_pick"],
                 game_3_stage=extra_data["game_3_stage"],
                 game_3_winner=extra_data["game_3_winner"],
                 game_3_final_move_id=extra_data["game_3_final_move_id"],
+                game_3_duration=extra_data["game_3_duration"],
                 final_move_id=extra_data["final_move_id"]
             )
         else:

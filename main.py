@@ -338,6 +338,8 @@ def clear_matchup_fields():
         x.set(False)
     for x in move_vars:
         x.set("N/A")
+    for x in duration_vars:
+        x.set(-1)
     name_var.set("")
     opp_elo.set(STARTING_DEFAULT)
 
@@ -388,20 +390,23 @@ def run_parser(dev: int = 0):
                 for x in range(3): int(moves.get(move_vars[x].get(), -1))
                 extra_data = {
                     "game_1_char_pick": int(characters.get("Loxodont", -1)),
-                    "game_2_char_pick": int(characters.get("Loxodont", -1)),
-                    "game_3_char_pick": int(characters.get("Loxodont", -1)),
                     "game_1_opponent_pick": int(characters.get(opp_vars[0].get(), -1)),
                     "game_1_stage": int(stages.get(stage_vars[0].get(), -1)),
+                    "game_1_winner": 2 if winner_vars[0].get() else (1 if opp_vars[0].get() != "N/A" else -1),
+                    "game_1_final_move_id": int(moves.get(move_vars[0].get().replace(" *", ""), -1)),
+                    "game_1_duration": int(duration_vars[0].get()),
+                    "game_2_char_pick": int(characters.get("Loxodont", -1)),
                     "game_2_opponent_pick": int(characters.get(opp_vars[1].get(), -1)),
                     "game_2_stage": int(stages.get(stage_vars[1].get(), -1)),
+                    "game_2_winner": 2 if winner_vars[1].get() else (1 if opp_vars[1].get() != "N/A" else -1),
+                    "game_2_final_move_id": int(moves.get(move_vars[1].get().replace(" *", ""), -1)),
+                    "game_2_duration": int(duration_vars[1].get()),
+                    "game_3_char_pick": int(characters.get("Loxodont", -1)),
                     "game_3_opponent_pick": int(characters.get(opp_vars[2].get(), -1)),
                     "game_3_stage": int(stages.get(stage_vars[2].get(), -1)),
-                    "game_1_winner": 2 if winner_vars[0].get() else (1 if opp_vars[0].get() != "N/A" else -1),
-                    "game_2_winner": 2 if winner_vars[1].get() else (1 if opp_vars[1].get() != "N/A" else -1),
                     "game_3_winner": 2 if winner_vars[2].get() else (1 if opp_vars[2].get() != "N/A" else -1),
-                    "game_1_final_move_id": int(moves.get(move_vars[0].get().replace(" *", ""), -1)),
-                    "game_2_final_move_id": int(moves.get(move_vars[1].get().replace(" *", ""), -1)),
                     "game_3_final_move_id": int(moves.get(move_vars[2].get().replace(" *", ""), -1)),
+                    "game_3_duration": int(duration_vars[2].get()),
                     "opponent_elo": int(opp_elo.get()),
                     "opponent_name": name_var.get() if name_var.get() is not None else "",
                     "final_move_id": -1
@@ -477,8 +482,7 @@ bottom_frame = Frame(root, padding=10)
 bottom_frame.pack(fill="x")
 
 Label(bottom_frame, text="Opp ELO").grid(row=0, column=1)
-opp_elo = tk.IntVar()
-opp_elo.set(STARTING_DEFAULT)  
+opp_elo = tk.IntVar(value=STARTING_DEFAULT)
 opp_elo_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=opp_elo, width=10)
 opp_elo_entry.grid(row=1, column=1, padx=5)
 
@@ -489,8 +493,7 @@ my_elo_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=my_elo, widt
 my_elo_entry.grid(row=1, column=2, padx=5, sticky="w")
 
 Label(bottom_frame, text="ELO Delta").grid(row=0, column=3 )
-change_elo = tk.IntVar()
-change_elo.set(0)
+change_elo = tk.IntVar(value=0)
 change_elo_entry = Spinbox(bottom_frame, from_=-50, to=50, textvariable=change_elo, width=10, takefocus=False)
 change_elo_entry.grid(row=1, column=3, padx=5, sticky="w")
 
@@ -498,13 +501,13 @@ refresh_button = Button(bottom_frame, text="Refresh", command=refresh_top_row, t
 refresh_button.grid(row=1, column=4, padx=10, sticky="w")
 
 times_button = Button(bottom_frame, text="Durations", command=get_match_times, takefocus=False)
-times_button.grid(row=1, column=6, padx=10, sticky="w")
+times_button.grid(row=1, column=5, padx=10, sticky="w")
 
 copy_button = Button(bottom_frame, text="Copy", command=generate_json, takefocus=False)
-copy_button.grid(row=1, column=16, padx=10, sticky="e")
+copy_button.grid(row=1, column=6, padx=10, sticky="e")
 
 clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields, takefocus=False)
-clear_button.grid(row=1, column=18, padx=10, sticky='e')
+clear_button.grid(row=1, column=7, padx=10, sticky='e')
 
 Label(bottom_frame, text=f"").grid(row=2, column=0, sticky='n')
 Label(bottom_frame, text=f"OppChar").grid(row=2, column=1, sticky='n')
@@ -523,7 +526,7 @@ for x in range(3):
     stage_var = tk.StringVar()
     winner_var = tk.BooleanVar()
     move_var = tk.StringVar()
-    duration_var = tk.IntVar()
+    duration_var = tk.IntVar(value=-1)
 
     opp_dropdown = OptionMenu(bottom_frame, opp_var, "Loading...")
     if x == 0:
@@ -533,7 +536,7 @@ for x in range(3):
     stage_dropdown = OptionMenu(bottom_frame, stage_var, "Loading...")
     winner_checkbox = Checkbutton(bottom_frame, text="OppWins", variable=winner_var)
     move_dropdown = OptionMenu(bottom_frame, move_var, "Loading...")
-    duration_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=duration_var, width=10)
+    duration_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=duration_var, width=3, takefocus=False)
     
     opp_dropdown.config(width=10)
     stage_dropdown.config(width=10)
@@ -567,10 +570,10 @@ for x in range(3):
     duration_entries.append(duration_entry)
 
 
-name_label = Label(bottom_frame, text="OppName").grid(row=2, column=17, padx=5, sticky='e')
+name_label = Label(bottom_frame, text="OppName").grid(row=3, column=6, padx=5, sticky='w')
 name_var = tk.StringVar()
 name_field = AutocompleteEntry(get_opponent_names(), bottom_frame, textvariable=name_var)
-name_field.grid(row=2, column=18, padx=10, sticky='e')
+name_field.grid(row=3, column=7, padx=10, sticky='e')
 name_field.bind(sequence="<Button-3>", func=lambda event, var=opp_var: clear_field(event, name_var, ""))
 
 style = Style()
