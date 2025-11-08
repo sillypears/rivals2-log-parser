@@ -15,7 +15,20 @@ from pydantic import TypeAdapter
 from config import Config
 from match_duration import roll_up_durations
 
-RIVALS_FOLDER = os.path.join(os.path.dirname(os.getenv("APPDATA")), "Local", "Rivals2", "Saved")
+import sys
+
+if sys.platform == "win32":
+    APPDATAFOLDER = os.path.dirname(os.getenv("APPDATA"))
+elif sys.platform.startswith("linux"):
+    APPDATAFOLDER = f"{os.path.expanduser("~")}/.local/share/Steam/steamapps/compatdata/2217000/pfx/drive_c/users/steamuser/AppData/"
+    print(APPDATAFOLDER)
+elif sys.platform == "darwin":
+    print("Dumbass on macOS")
+    sys.exit()
+else:
+    print("Unknown OS")
+
+RIVALS_FOLDER = os.path.join(APPDATAFOLDER, "Local", "Rivals2", "Saved")
 RIVALS_LOG_FOLDER = os.path.join(RIVALS_FOLDER, "Logs")
 
 config = Config()
