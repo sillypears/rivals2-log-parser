@@ -196,8 +196,11 @@ cython_debug/
 
 Scripts/*
 Include/*
+include/*
 Lib/*
+lib/*
 bin/*
+pyvenv.cfg
 *.sqlite
 dump.sql
 .vscode/settings.json
