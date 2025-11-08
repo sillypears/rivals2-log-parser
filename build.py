@@ -9,7 +9,9 @@ def run_build():
         sys.executable, "-m", "PyInstaller",
         "--onefile",
         "--windowed",
+        "--icon=icon.ico",
         '--add-data', 'config.ini;.',   # <-- your exact data flag
+        "--add-data", "icon.png;.",
         "main.py"
     ]
     print("Running:", " ".join(cmd))
