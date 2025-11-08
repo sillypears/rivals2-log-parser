@@ -443,6 +443,19 @@ setup_logging()
 root = tk.Tk()
 root.title("Rivals 2 Log Parser")
 
+# --- SET WINDOW ICON ---
+icon_file = "icon.ico" if sys.platform.startswith("win") else "icon.png"
+icon_path = os.path.join(icon_file)
+
+if os.path.isfile(icon_path):
+    if sys.platform.startswith("win"):
+        root.iconbitmap(icon_path)                    # Windows: .ico
+    else:
+        img = tk.PhotoImage(file=icon_path)
+        root.iconphoto(True, img)                     # Linux/macOS: .png
+else:
+    print(f"[WARN] Icon not found: {icon_path}")
+
 # dropdowns
 opp_vars = [] * 3 
 opp_dropdowns: list[OptionMenu] = []
