@@ -1,7 +1,6 @@
 import logging
 from logging.handlers import RotatingFileHandler
 import os, sys
-from dotenv import load_dotenv
 import utils.folders
 from typing import TextIO
 import re
