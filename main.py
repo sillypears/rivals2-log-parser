@@ -86,13 +86,13 @@ def open_log_file(file_name):
     if file_name == "app":
         log_path = os.path.join(config.log_dir, config.log_file)
     if file_name == "rivals":
-        log_path = os.path.expanduser("~")
+        log_path = RIVALS_LOG_FOLDER
         if sys.platform.startswith('darwin'):  # macOS
             pass
         elif os.name == "nt":
             log_path = os.path.join(log_path, "AppData", "Local", "Rivals2", "Saved", "Logs", "Rivals2.log" )
         elif os.name == 'posix':  # Linux
-            pass
+            log_path = os.path.join(log_path)
         else:
             return
     print(log_path)
