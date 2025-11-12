@@ -467,10 +467,10 @@ move_vars = []
 duration_vars = []
 duration_entries = []
 
-frame = Frame(root, padding=10)
+frame = Frame(root, borderwidth=1, relief="sunken", padding=2)
 frame.pack(fill="both", expand=True)
 
-topframe = Frame(frame)
+topframe = Frame(frame, borderwidth=1, relief="sunken",)
 topframe.pack(fill="both", expand=True)
 
 run_button = Button(topframe, text="Run Log Parser", command=run_parser, takefocus=False)
@@ -487,11 +487,11 @@ cbvar = tk.IntVar()
 run_switch = Checkbutton(topframe, text="Debug",  variable=cbvar, takefocus=False)
 run_switch.pack(side=tk.RIGHT)
 
-output_text = scrolledtext.ScrolledText(frame, width=60, height=20, takefocus=False)
-output_text.pack(fill="both", expand=True)
+output_text = scrolledtext.ScrolledText(frame, width=40, height=20, takefocus=False)
+output_text.pack(fill="both", expand=False)
 output_text.configure(state='disabled')
 
-bottom_frame = Frame(root, padding=10)
+bottom_frame = Frame(root, borderwidth=2, relief="sunken", padding=2)
 bottom_frame.pack(fill="x")
 
 Label(bottom_frame, text="Opp ELO").grid(row=0, column=1)
@@ -508,19 +508,19 @@ my_elo_entry.grid(row=1, column=2, padx=5, sticky="w")
 Label(bottom_frame, text="ELO Delta").grid(row=0, column=3 )
 change_elo = tk.IntVar(value=0)
 change_elo_entry = Spinbox(bottom_frame, from_=-50, to=50, textvariable=change_elo, width=10, takefocus=False)
-change_elo_entry.grid(row=1, column=3, padx=5, sticky="w")
+change_elo_entry.grid(row=1, column=3, padx=2, sticky="w")
 
 refresh_button = Button(bottom_frame, text="Refresh", command=refresh_top_row, takefocus=False)
-refresh_button.grid(row=1, column=4, padx=10, sticky="w")
+refresh_button.grid(row=1, column=4, padx=2, sticky="w")
 
 times_button = Button(bottom_frame, text="Durations", command=get_match_times, takefocus=False)
-times_button.grid(row=1, column=5, padx=10, sticky="w")
+times_button.grid(row=1, column=5, padx=2, sticky="w")
 
 copy_button = Button(bottom_frame, text="Copy", command=generate_json, takefocus=False)
-copy_button.grid(row=1, column=6, padx=10, sticky="e")
+copy_button.grid(row=1, column=6, padx=2, sticky="e")
 
 clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields, takefocus=False)
-clear_button.grid(row=1, column=7, padx=10, sticky='e')
+clear_button.grid(row=1, column=7, padx=2, sticky='e')
 
 Label(bottom_frame, text=f"").grid(row=2, column=0, sticky='n')
 Label(bottom_frame, text=f"OppChar").grid(row=2, column=1, sticky='n')
@@ -547,7 +547,7 @@ for x in range(3):
     
 
     stage_dropdown = OptionMenu(bottom_frame, stage_var, "Loading...")
-    winner_checkbox = Checkbutton(bottom_frame, text="OppWins", variable=winner_var)
+    winner_checkbox = Checkbutton(bottom_frame, text="Opp", variable=winner_var)
     move_dropdown = OptionMenu(bottom_frame, move_var, "Loading...")
     duration_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=duration_var, width=3, takefocus=False)
     
@@ -560,11 +560,11 @@ for x in range(3):
     move_dropdown.bind(sequence="<Button-3>", func=lambda event, var=move_var: clear_field(event, var, "N/A"))
     duration_entry.bind(sequence="<Button-3>", func=lambda event, var=duration_var: clear_field(event, var, "-1"))
 
-    opp_dropdown.grid(row=x+delta, column=1, padx=5, sticky="w")
-    stage_dropdown.grid(row=x+delta, column=2, padx=5, sticky="w")
-    winner_checkbox.grid(row=x+delta, column=4, padx=5, sticky="w")
-    move_dropdown.grid(row=x+delta, column=3, padx=5, sticky="w")
-    duration_entry.grid(row=x+delta, column=5, padx=5, sticky="w")
+    opp_dropdown.grid(row=x+delta, column=1, padx=2, sticky="w")
+    stage_dropdown.grid(row=x+delta, column=2, padx=2, sticky="w")
+    move_dropdown.grid(row=x+delta, column=3, padx=2, sticky="w")
+    winner_checkbox.grid(row=x+delta, column=4, padx=2, sticky="w")
+    duration_entry.grid(row=x+delta, column=5, padx=2, sticky="w")
 
     opp_dropdown.config(takefocus=False)
     stage_dropdown.config(takefocus=False)
@@ -583,10 +583,10 @@ for x in range(3):
     duration_entries.append(duration_entry)
 
 
-name_label = Label(bottom_frame, text="OppName").grid(row=3, column=6, padx=5, sticky='w')
+name_label = Label(bottom_frame, text="Name").grid(row=3, column=6, padx=2, sticky='w')
 name_var = tk.StringVar()
 name_field = AutocompleteEntry(get_opponent_names(), bottom_frame, textvariable=name_var)
-name_field.grid(row=3, column=7, padx=10, sticky='e')
+name_field.grid(row=3, column=7, padx=2, sticky='e')
 name_field.bind(sequence="<Button-3>", func=lambda event, var=opp_var: clear_field(event, name_var, ""))
 
 style = Style()
