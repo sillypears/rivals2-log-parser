@@ -200,7 +200,7 @@ class MainWindow(QMainWindow):
             self.winner_checks.append(winner_check)
 
             duration_spin = QSpinBox()
-            duration_spin.setRange(0, 3000)
+            duration_spin.setRange(-1, 3000)
             duration_spin.setValue(-1)
             duration_spin.setMinimumWidth(50)
             bottom_layout.addWidget(duration_spin, row, 5)
