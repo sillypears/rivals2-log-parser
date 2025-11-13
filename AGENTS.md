@@ -17,6 +17,7 @@ This file contains notes, commands, and configurations for the opencode agent to
 - **Build**: PyInstaller commands updated for PySide6 bundling.
 - **Tab Order Adjustment**: Modified tab navigation in main.py to only allow tabbing between the name entry box and opponent ELO spinbox, excluding all other widgets from tab order.
 - **Network Error Handling**: Improved error handling for all network requests in main.py and log_parser.py, adding specific exception catching (Timeout, ConnectionError, RequestException), timeouts, and user notifications for failures.
+- **Application Shutdown Fix**: Added proper closeEvent handling to stop background threads and signal handling for Ctrl+C to ensure clean application shutdown.
 
 ## Key Files
 - `main.py`: Main GUI application (PySide6).
