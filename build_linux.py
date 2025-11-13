@@ -43,11 +43,8 @@ def run_build():
         sys.executable, "-m", "PyInstaller",
         "--onefile",
         "--windowed",
-        "--hidden-import=tkinter",
-        "--icon=icon.ico",
-        "--collect-all=tkinter",              # pulls in .tcl files too
         f"--add-data=config.ini{DATA_SEP}.",   # <-- cross-platform
-        f"--add-data=icon.png{DATA_SEP}.",
+        f"--add-data=icon_rgb.png{DATA_SEP}.",
     ]
 
     # Add Tk/Tcl .so files on Linux

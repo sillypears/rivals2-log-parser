@@ -18,6 +18,8 @@ This file contains notes, commands, and configurations for the opencode agent to
 - **Tab Order Adjustment**: Modified tab navigation in main.py to only allow tabbing between the name entry box and opponent ELO spinbox, excluding all other widgets from tab order.
 - **Network Error Handling**: Improved error handling for all network requests in main.py and log_parser.py, adding specific exception catching (Timeout, ConnectionError, RequestException), timeouts, and user notifications for failures.
 - **Application Shutdown Fix**: Added proper closeEvent handling to stop background threads and signal handling for Ctrl+C to ensure clean application shutdown.
+- **Dropdown Separators**: Fixed dropdown separators in PySide6 by inserting horizontal lines for "sepior" items instead of displaying them as text.
+- **Icon Loading**: Updated icon handling to use an RGB-converted PNG for Linux to ensure compatibility with PySide6/Qt.
 
 ## Key Files
 - `main.py`: Main GUI application (PySide6).
@@ -29,7 +31,8 @@ This file contains notes, commands, and configurations for the opencode agent to
 
 ## Commands
 - **Run Application**: `python main.py`
-- **Build EXE**: `pyinstaller --onefile --windowed --add-data "config.ini;." main.py`
+- **Build EXE (Windows)**: `pyinstaller --onefile --windowed --icon=icon.ico --add-data "config.ini;." --add-data "icon.png;." main.py`
+- **Build Binary (Linux)**: `python build_linux.py build`
 - **Install Dependencies**: `pip install -r requirements.txt`
 - **Test Database**: `python tests/test_db.py`
 

@@ -12,3 +12,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 2025-11-13: Improved network error handling across the application, adding specific exception handling for timeouts, connection errors, and general request failures, with user-friendly notifications in the GUI.
 - 2025-11-13: Added closeEvent method in `MainWindow` to properly stop background parser threads when closing the application window.
 - 2025-11-13: Added signal handling for SIGINT to allow graceful termination via Ctrl+C from the console.
+- 2025-11-13: Fixed dropdown separators to display horizontal lines instead of "sepior" text in PySide6.
+- 2025-11-13: Updated icon loading to use RGB PNG format for Linux compatibility in PySide6.

@@ -57,10 +57,16 @@ class MainWindow(QMainWindow):
 
 
         # Set window icon
-        icon_file = "icon.ico" if sys.platform.startswith("win") else "icon.png"
-        icon_path = os.path.join(icon_file)
+        icon_file = "icon.ico" if sys.platform.startswith("win") else "icon_rgb.png"
+        try:
+            from PyInstaller import sys as pyi_sys
+            icon_path = os.path.join(pyi_sys._MEIPASS, icon_file)
+        except ImportError:
+            icon_path = os.path.join(os.path.dirname(__file__), icon_file)
         if os.path.isfile(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
+            icon = QIcon(icon_path)
+            if not icon.isNull():
+                self.setWindowIcon(icon)
 
         # Position window
         screen = QApplication.primaryScreen().availableGeometry()
@@ -566,19 +572,26 @@ class MainWindow(QMainWindow):
 
         self.output_text.append(f"Fetched {len([x for x in characters_json['data'] if x['list_order'] > 0])} characters, {len([x for x in stage_json['data'] if x['list_order'] > 0])} stages and {len([x for x in moves_json['data'] if x['list_order'] > 0])} moves.")
 
-        try:
-            for x in range(3):
-                self.opp_combos[x].clear()
-                self.opp_combos[x].addItems(character_names)
-                self.stage_combos[x].clear()
-                if x == 0:
-                    self.stage_combos[x].addItems(list(stages1.keys()))
-                else:
-                    self.stage_combos[x].addItems(stage_names)
-                self.move_combos[x].clear()
-                self.move_combos[x].addItems(move_names)
-        except Exception as e:
-            self.output_text.append(f"Error updating data: {e}")
+        for x in range(3):
+            self.opp_combos[x].clear()
+            self.opp_combos[x].addItems(character_names)
+            self.stage_combos[x].clear()
+            if x == 0:
+                self.stage_combos[x].addItems(list(stages1.keys()))
+            else:
+                self.stage_combos[x].addItems(stage_names)
+            self.move_combos[x].clear()
+            self.move_combos[x].addItems(move_names)
+
+        # Add separators for "sepior" items
+        for combo in self.opp_combos + self.stage_combos + self.move_combos:
+            separators = []
+            for i in range(combo.count()):
+                if combo.itemText(i).startswith("sepior"):
+                    separators.append(i)
+            for idx in reversed(separators):
+                combo.insertSeparator(idx)
+                combo.removeItem(idx + 1)
 
     def are_required_dropdowns_filled(self):
         return all([
