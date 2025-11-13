@@ -42,7 +42,7 @@ This repository contains a Python application for parsing log files from the gam
 - Handles both automatic parsing and manual data entry
 
 ### GUI Application (`main.py`)
-- PySide6-based desktop application with modern, cross-platform interface
+- PySide6-based desktop application with modern, cross-platform interface and custom icon
 - Fetches character, stage, and move data from backend
 - Allows manual input of match details (opponent, stages, final moves)
 - Displays current ELO and match history
@@ -73,8 +73,8 @@ This repository contains a Python application for parsing log files from the gam
 - Platform-specific paths for log file locations
 
 ## Build System
-- Uses PyInstaller for creating standalone executables
-- Supports Windows and Linux builds
+- Uses PyInstaller for creating standalone executables with embedded icons
+- Supports Windows (EXE with ICO icon) and Linux (binary with PNG icon) builds
 - Includes taskipy for build automation
 
 ## Testing
