@@ -9,6 +9,7 @@ from datetime import datetime
 import utils.calc_elo as calc_elo
 from utils.match import Match
 import requests
+import requests.exceptions
 from pprint import pprint
 import json
 from pydantic import TypeAdapter
@@ -73,12 +74,12 @@ def search_file(file: TextIO, string: str):
         return False
 
 def see_if_game_exists(match_id, match_date):
-    res = requests.get(f"http://{config.be_host}:{config.be_port}/match-exists?match_number={match_id}")
-    if res.status_code == 200:
-        return True
-    else:
-        logger.debug(f"Got {res.status_code}")
-        return False
+    try:
+        res = requests.get(f"http://{config.be_host}:{config.be_port}/match-exists?match_number={match_id}", timeout=10)
+        return res.status_code == 200
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error checking match existence for {match_id}: {e}")
+        return False  # Assume not exists on error
 
 def find_rank_in_logs(files: list[str]):
     ranks = []
@@ -135,11 +136,18 @@ def extract_numbers(line: str, file: str = None) -> Match:
 def post_match(match: Match) -> requests.Response|dict:
     try:
         logger.debug(f"Posting match: {match.ranked_game_number} to BE")
-        res = requests.post(f"http://{config.be_host}:{config.be_port}/insert-match{"?debug=1" if int(config.debug) else ""}", data=TypeAdapter(Match).dump_json(match))
+        res = requests.post(f"http://{config.be_host}:{config.be_port}/insert-match{"?debug=1" if int(config.debug) else ""}", data=TypeAdapter(Match).dump_json(match), timeout=10)
+        res.raise_for_status()
         return res.json()
-    except:
-        logger.error(f"Couldn't post match: {match.ranked_game_number} to BE")
-        return {"error": "Couldn't post match to BE"}
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout posting match: {match.ranked_game_number}")
+        return {"error": "Timeout posting match to backend"}
+    except requests.exceptions.ConnectionError:
+        logger.error(f"Connection error posting match: {match.ranked_game_number}")
+        return {"error": "Unable to connect to backend for posting match"}
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request error posting match {match.ranked_game_number}: {e}")
+        return {"error": f"Failed to post match to backend: {e}"}
     
 def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
     logger.debug("Getting log files")
