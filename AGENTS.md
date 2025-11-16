@@ -20,6 +20,10 @@ This file contains notes, commands, and configurations for the opencode agent to
 - **Application Shutdown Fix**: Added proper closeEvent handling to stop background threads and signal handling for Ctrl+C to ensure clean application shutdown.
 - **Dropdown Separators**: Fixed dropdown separators in PySide6 by inserting horizontal lines for "sepior" items instead of displaying them as text.
 - **Icon Loading**: Updated icon handling to use an RGB-converted PNG for Linux, with proper path resolution for both source and compiled binaries to ensure compatibility with PySide6/Qt.
+- **Logging Fixes**: Made log directory absolute to avoid temp paths in executables; updated log opening to use subprocess with env modification to prevent Qt conflicts.
+- **Build Script Update**: Removed Tkinter references from build_linux.py since PySide6 is used.
+- **Parser Enhancements**: Corrected final_move_id submission to match the last game's final move; added detailed logging for insertions.
+- **JSON Import/Export**: Added "Paste JSON" button for importing match data; removed unnecessary "final_move_id" from JSON output.
 
 ## Key Files
 - `main.py`: Main GUI application (PySide6).
