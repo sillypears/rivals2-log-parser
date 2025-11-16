@@ -158,9 +158,13 @@ class MainWindow(QMainWindow):
         copy_button.clicked.connect(self.generate_json)
         bottom_layout.addWidget(copy_button, 1, 6)
 
+        paste_button = QPushButton("Paste JSON")
+        paste_button.clicked.connect(self.paste_json)
+        bottom_layout.addWidget(paste_button, 2, 6)
+
         clear_button = QPushButton("Clear")
         clear_button.clicked.connect(self.clear_matchup_fields)
-        bottom_layout.addWidget(clear_button, 1, 7)
+        bottom_layout.addWidget(clear_button, 1, 8)
 
         # Game sections
         bottom_layout.addWidget(QLabel("OppChar"), 2, 1)
@@ -425,7 +429,16 @@ class MainWindow(QMainWindow):
             else:
                 return
         if log_path and os.path.exists(log_path):
-            QDesktopServices.openUrl(QUrl.fromLocalFile(log_path))
+            import subprocess
+            env = os.environ.copy()
+            if 'LD_LIBRARY_PATH' in env:
+                del env['LD_LIBRARY_PATH']
+            if sys.platform == "win32":
+                os.startfile(log_path)
+            elif sys.platform == "darwin":
+                subprocess.run(["open", log_path], env=env)
+            else:
+                subprocess.run(["xdg-open", log_path], env=env)
 
     def get_final_move_top_list(self):
         try:
@@ -632,11 +645,42 @@ class MainWindow(QMainWindow):
             jsond[f"game_{x+1}_final_move_id"] = int(moves.get(self.move_combos[x].currentText().replace(" *", ""), -1))
             jsond[f"game_{x+1}_winner"] = 2 if self.winner_checks[x].isChecked() else (1 if self.opp_combos[x].currentText() != "N/A" else -1)
             jsond[f"game_{x+1}_duration"] = self.duration_spins[x].value()
-        jsond["final_move_id"] = -2
+        def get_final_move_id(data):
+            for i in [3, 2, 1]:
+                fmid = data[f"game_{i}_final_move_id"]
+                if fmid != -1:
+                    return fmid
+            return -2
+        jsond["final_move_id"] = get_final_move_id(jsond)
         jsond["notes"] = "Added via JSON lol"
         logger.debug(json.dumps(jsond))
         clipboard = QApplication.clipboard()
         clipboard.setText(json.dumps(jsond, indent=4))
+
+    def paste_json(self):
+        clipboard = QApplication.clipboard()
+        try:
+            data = json.loads(clipboard.text())
+            self.my_elo_spin.setValue(data.get("elo_rank_new", 0))
+            self.change_elo_spin.setValue(data.get("elo_change", 0))
+            self.opp_elo_spin.setValue(data.get("opponent_elo", 1000))
+            self.name_edit.setText(data.get("opponent_name", ""))
+            for x in range(3):
+                opp_id = data.get(f"game_{x+1}_opponent_pick", -1)
+                opp_name = next((k for k, v in characters.items() if v == opp_id), "N/A")
+                self.opp_combos[x].setCurrentText(opp_name)
+                stage_id = data.get(f"game_{x+1}_stage", -1)
+                stage_name = next((k for k, v in stages.items() if v == stage_id), "N/A")
+                self.stage_combos[x].setCurrentText(stage_name)
+                move_id = data.get(f"game_{x+1}_final_move_id", -1)
+                move_name = next((k for k, v in moves.items() if v == move_id), "N/A")
+                self.move_combos[x].setCurrentText(move_name)
+                winner = data.get(f"game_{x+1}_winner", -1)
+                self.winner_checks[x].setChecked(winner == 2)
+                duration = data.get(f"game_{x+1}_duration", -1)
+                self.duration_spins[x].setValue(duration)
+        except json.JSONDecodeError:
+            QMessageBox.warning(self, "Error", "Invalid JSON in clipboard.")
 
     def run_parser(self):
         self.run_button.setEnabled(False)

@@ -245,7 +245,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
             logger.error(f"why did posting fail?? {e}|{res}")
         try:
             if not dev:
-                logger.info(f"Inserting match: Game: {match.ranked_game_number} Rank: {match.elo_rank_new}, res: {res}")
+                logger.info(f"Inserted match: Game {new_match.ranked_game_number}, Rank {new_match.elo_rank_new}, Change {new_match.elo_change}, Final Move {new_match.final_move_id}, res: {res}")
         except Exception as e:
             logger.error(f"Something bonked lol: {e}")
         count.append(match)
