@@ -6,8 +6,9 @@ from logging.handlers import RotatingFileHandler
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QPushButton, QComboBox, QLineEdit, QSpinBox, QCheckBox, QLabel, QTextEdit,
-    QCompleter, QMessageBox, QFrame
+    QCompleter, QMessageBox, QFrame, QMenu
 )
+from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl
 from PySide6.QtGui import QIcon, QPixmap, QDesktopServices
 import requests
@@ -74,12 +75,16 @@ class MainWindow(QMainWindow):
 
         self.setup_ui()
         self.populate_dropdowns()
+        self.setup_reset_menus()
+        self.adjustSize()
 
     def closeEvent(self, event):
         if hasattr(self, 'worker') and self.worker.isRunning():
             self.worker.quit()
             self.worker.wait()
         event.accept()
+
+
 
     def setup_ui(self):
         central_widget = QWidget()
@@ -183,19 +188,19 @@ class MainWindow(QMainWindow):
 
             opp_combo = QComboBox()
             opp_combo.addItem("Loading...")
-            opp_combo.setMinimumWidth(100)
+            opp_combo.setMinimumWidth(80)
             bottom_layout.addWidget(opp_combo, row, 1)
             self.opp_combos.append(opp_combo)
 
             stage_combo = QComboBox()
             stage_combo.addItem("Loading...")
-            stage_combo.setMinimumWidth(100)
+            stage_combo.setMinimumWidth(80)
             bottom_layout.addWidget(stage_combo, row, 2)
             self.stage_combos.append(stage_combo)
 
             move_combo = QComboBox()
             move_combo.addItem("Loading...")
-            move_combo.setMinimumWidth(100)
+            move_combo.setMinimumWidth(80)
             bottom_layout.addWidget(move_combo, row, 3)
             self.move_combos.append(move_combo)
 
@@ -213,6 +218,7 @@ class MainWindow(QMainWindow):
         # Name field
         bottom_layout.addWidget(QLabel("Name"), 3, 6)
         self.name_edit = QLineEdit()
+        self.name_edit.setMinimumWidth(30)
         self.name_edit.setCompleter(QCompleter(self.get_opponent_names()))
         bottom_layout.addWidget(self.name_edit, 3, 7)
 
@@ -245,6 +251,40 @@ class MainWindow(QMainWindow):
 
         # Connect signals
         self.opp_combos[0].currentTextChanged.connect(self.sync_games)
+
+    def setup_reset_menus(self):
+        widgets_to_reset = [
+            self.opp_elo_spin,
+            self.my_elo_spin,
+            self.change_elo_spin,
+            self.name_edit,
+            self.theme_combo,
+            self.debug_checkbox,
+        ] + self.opp_combos + self.stage_combos + self.move_combos + self.winner_checks + self.duration_spins
+
+        for widget in widgets_to_reset:
+            widget.setContextMenuPolicy(Qt.CustomContextMenu)
+            widget.customContextMenuRequested.connect(lambda pos, w=widget: self.show_reset_menu(w, pos))
+
+    def show_reset_menu(self, widget, pos):
+        self.reset_widget(widget)
+
+    def reset_widget(self, widget):
+        if isinstance(widget, QSpinBox):
+            if widget == self.opp_elo_spin:
+                widget.setValue(STARTING_DEFAULT)
+            elif widget == self.my_elo_spin:
+                widget.setValue(int(self.get_current_elo()["data"]["current_elo"]))
+            elif widget == self.change_elo_spin:
+                widget.setValue(0)
+            elif widget in self.duration_spins:
+                widget.setValue(-1)
+        elif isinstance(widget, QComboBox):
+            widget.setCurrentIndex(0)
+        elif isinstance(widget, QLineEdit):
+            widget.clear()
+        elif isinstance(widget, QCheckBox):
+            widget.setChecked(False)
 
     def change_theme(self, theme_name):
         themes = {

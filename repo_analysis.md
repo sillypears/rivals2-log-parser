@@ -109,5 +109,7 @@ This repository contains a Python application for parsing log files from the gam
 - **Dependencies**: Added PySide6==6.8.1 to requirements.txt and pyproject.toml dev dependencies.
 - **Build**: PyInstaller commands updated for PySide6 bundling.
 - **Tab Order Adjustment**: Modified tab navigation in main.py to only allow tabbing between the name entry box and opponent ELO spinbox, excluding all other widgets from tab order.
+- **Right-Click Reset**: Added right-click functionality to all input widgets (spinboxes, combos, line edits, checkboxes) to instantly reset them to their initial values.
+- **Compact Window Sizing**: Optimized window to open at minimal possible size by reducing combo box minimum widths to 80px and name entry to 30px, using adjustSize() for dynamic sizing.
 
 This project serves as a bridge between the game's log files and a centralized match tracking system, providing both automated parsing and manual data entry capabilities for Rivals 2 players.

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - 2025-11-16: Added "Paste JSON" button to import match data from clipboard back into the UI fields.
+- 2025-11-17: Added right-click reset functionality for all input widgets (spinboxes, combos, line edits, checkboxes) to restore them to initial values.
 
 ### Changed
 - 2025-11-13: Modified tab order in `main.py` to make only the name entry box and opponent ELO spinbox tabbable, excluding all other widgets from tab navigation.
@@ -23,3 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 2025-11-16: Corrected final_move_id submission in parser to use the final move from the last played game.
 - 2025-11-16: Enhanced logging in parser to include final_move_id in insertion messages.
 - 2025-11-16: Removed "final_move_id" from generated JSON as it's not needed.
+- 2025-11-17: Fixed QAction import from PySide6.QtWidgets to PySide6.QtGui for PySide6 compatibility.
+- 2025-11-17: Optimized window sizing to be as compact as possible by reducing combo box minimum widths to 80px and using adjustSize() for dynamic minimal sizing.
+- 2025-11-17: Reduced name entry field minimum width to 30px for tighter layout.
