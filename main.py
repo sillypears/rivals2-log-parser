@@ -135,7 +135,7 @@ class MainWindow(QMainWindow):
         # ELO section
         bottom_layout.addWidget(QLabel("Opp ELO"), 0, 1)
         self.opp_elo_spin = QSpinBox()
-        self.opp_elo_spin.setRange(0, 3000)
+        self.opp_elo_spin.setRange(-2, 3000)
         self.opp_elo_spin.setValue(STARTING_DEFAULT)
         bottom_layout.addWidget(self.opp_elo_spin, 1, 1)
 
