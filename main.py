@@ -132,49 +132,57 @@ class MainWindow(QMainWindow):
         # Bottom section
         bottom_layout = QGridLayout()
 
-        # ELO section
-        bottom_layout.addWidget(QLabel("Opp ELO"), 0, 1)
-        self.opp_elo_spin = QSpinBox()
-        self.opp_elo_spin.setRange(-2, 3000)
-        self.opp_elo_spin.setValue(STARTING_DEFAULT)
-        bottom_layout.addWidget(self.opp_elo_spin, 1, 1)
-
-        bottom_layout.addWidget(QLabel("My New ELO"), 0, 2)
-        self.my_elo_spin = QSpinBox()
-        self.my_elo_spin.setRange(0, 3000)
-        self.my_elo_spin.setValue(int(self.get_current_elo()["data"]["current_elo"]))
-        bottom_layout.addWidget(self.my_elo_spin, 1, 2)
-
-        bottom_layout.addWidget(QLabel("ELO Delta"), 0, 3)
-        self.change_elo_spin = QSpinBox()
-        self.change_elo_spin.setRange(-50, 50)
-        self.change_elo_spin.setValue(0)
-        bottom_layout.addWidget(self.change_elo_spin, 1, 3)
-
+        # Buttons row
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self.refresh_top_row)
-        bottom_layout.addWidget(refresh_button, 1, 4)
+        bottom_layout.addWidget(refresh_button, 0, 1)
 
         times_button = QPushButton("Durations")
         times_button.clicked.connect(self.get_match_times)
-        bottom_layout.addWidget(times_button, 1, 5)
+        bottom_layout.addWidget(times_button, 0, 2)
 
         copy_button = QPushButton("Copy")
         copy_button.clicked.connect(self.generate_json)
-        bottom_layout.addWidget(copy_button, 1, 6)
+        bottom_layout.addWidget(copy_button, 0, 3)
 
         paste_button = QPushButton("Paste JSON")
         paste_button.clicked.connect(self.paste_json)
-        bottom_layout.addWidget(paste_button, 2, 6)
+        bottom_layout.addWidget(paste_button, 0, 4)
 
         clear_button = QPushButton("Clear")
         clear_button.clicked.connect(self.clear_matchup_fields)
-        bottom_layout.addWidget(clear_button, 1, 8)
+        bottom_layout.addWidget(clear_button, 0, 5)
+
+        # ELO section
+        bottom_layout.addWidget(QLabel("Opp ELO"), 1, 1)
+        self.opp_elo_spin = QSpinBox()
+        self.opp_elo_spin.setRange(-2, 3000)
+        self.opp_elo_spin.setValue(STARTING_DEFAULT)
+        bottom_layout.addWidget(self.opp_elo_spin, 2, 1)
+
+        bottom_layout.addWidget(QLabel("My New ELO"), 1, 2)
+        self.my_elo_spin = QSpinBox()
+        self.my_elo_spin.setRange(0, 3000)
+        self.my_elo_spin.setValue(int(self.get_current_elo()["data"]["current_elo"]))
+        bottom_layout.addWidget(self.my_elo_spin, 2, 2)
+
+        bottom_layout.addWidget(QLabel("ELO Delta"), 1, 3)
+        self.change_elo_spin = QSpinBox()
+        self.change_elo_spin.setRange(-50, 50)
+        self.change_elo_spin.setValue(0)
+        bottom_layout.addWidget(self.change_elo_spin, 2, 3)
+
+        # Name field
+        bottom_layout.addWidget(QLabel("Name"), 3, 1)
+        self.name_edit = QLineEdit()
+        self.name_edit.setMinimumWidth(30)
+        self.name_edit.setCompleter(QCompleter(self.get_opponent_names()))
+        bottom_layout.addWidget(self.name_edit, 3, 2, 1, 4)
 
         # Game sections
-        bottom_layout.addWidget(QLabel("OppChar"), 2, 1)
-        bottom_layout.addWidget(QLabel("Stage"), 2, 2)
-        bottom_layout.addWidget(QLabel("FinalMove"), 2, 3)
+        bottom_layout.addWidget(QLabel("OppChar"), 4, 1)
+        bottom_layout.addWidget(QLabel("Stage"), 4, 2)
+        bottom_layout.addWidget(QLabel("FinalMove"), 4, 3)
 
         self.opp_combos = []
         self.stage_combos = []
@@ -183,7 +191,7 @@ class MainWindow(QMainWindow):
         self.duration_spins = []
 
         for x in range(3):
-            row = x + 3
+            row = x + 5
             bottom_layout.addWidget(QLabel(f"Game {x+1}"), row, 0, Qt.AlignRight)
 
             opp_combo = QComboBox()
@@ -214,13 +222,6 @@ class MainWindow(QMainWindow):
             duration_spin.setMinimumWidth(50)
             bottom_layout.addWidget(duration_spin, row, 5)
             self.duration_spins.append(duration_spin)
-
-        # Name field
-        bottom_layout.addWidget(QLabel("Name"), 3, 6)
-        self.name_edit = QLineEdit()
-        self.name_edit.setMinimumWidth(30)
-        self.name_edit.setCompleter(QCompleter(self.get_opponent_names()))
-        bottom_layout.addWidget(self.name_edit, 3, 7)
 
         main_layout.addLayout(bottom_layout)
 
@@ -523,7 +524,10 @@ class MainWindow(QMainWindow):
         self.output_text.append(str(data))
         last = data[list(data.keys())[-1]]['durations']
         for i, d in enumerate(self.duration_spins):
-            d.setValue(int(last[i]))
+            if i < len(last):
+                d.setValue(int(last[i]))
+            else:
+                d.setValue(-1)
 
     def get_opponent_names(self):
         try:
