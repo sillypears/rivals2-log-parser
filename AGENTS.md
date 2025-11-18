@@ -24,6 +24,8 @@ This file contains notes, commands, and configurations for the opencode agent to
 - **Build Script Update**: Removed Tkinter references from build_linux.py since PySide6 is used.
 - **Parser Enhancements**: Corrected final_move_id submission to match the last game's final move; added detailed logging for insertions.
 - **JSON Import/Export**: Added "Paste JSON" button for importing match data; removed unnecessary "final_move_id" from JSON output.
+- **GUI Layout Update**: Rearranged layout to be more vertical by moving buttons above ELO inputs and positioning the name input above game sections spanning multiple columns.
+- **Durations Button Fix**: Fixed index error when filling match durations for matches with fewer than 3 games.
 
 ## Key Files
 - `main.py`: Main GUI application (PySide6).
