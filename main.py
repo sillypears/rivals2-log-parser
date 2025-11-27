@@ -1,20 +1,41 @@
-import tkinter as tk
-from tkinter.ttk import *
-from tkinter import messagebox, scrolledtext
-import threading
+import sys
 import os
 import logging
+import signal
 from logging.handlers import RotatingFileHandler
-from config import Config
+from PySide6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QPushButton,
+    QComboBox,
+    QLineEdit,
+    QSpinBox,
+    QCheckBox,
+    QLabel,
+    QTextEdit,
+    QCompleter,
+    QMessageBox,
+    QFrame,
+    QMenu,
+)
+from PySide6.QtGui import QAction
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl
+from PySide6.QtGui import QIcon, QPixmap, QDesktopServices
 import requests
+import requests.exceptions
 import traceback
-import log_parser
+import json
 from datetime import datetime, timezone
 from utils.calc_elo import estimate_opponent_elo
-import json
-import sys, subprocess
+import log_parser
 from match_duration import roll_up_durations
 from log_parser import RIVALS_LOG_FOLDER
+from config import Config
+
 config = Config()
 
 logger = logging.getLogger()
@@ -25,139 +46,889 @@ moves = {}
 top_moves = []
 STARTING_DEFAULT = config.opp_dir
 
-class AutocompleteEntry(tk.Entry):
-    def __init__(self, autocomplete_list, *args, **kwargs):
-        self.var = kwargs.get("textvariable") or tk.StringVar()
-        kwargs["textvariable"] = self.var
-        super().__init__(*args, **kwargs)
 
-        self.autocomplete_list = autocomplete_list
-        self.listbox = None
+class ParserWorker(QThread):
+    finished = Signal(list)
+    error = Signal(str)
+    update_output = Signal(str)
 
-        self.bind('<KeyRelease>', self.check_autocomplete)
+    def __init__(self, dev, extra_data):
+        super().__init__()
+        self.dev = dev
+        self.extra_data = extra_data
 
-    def check_autocomplete(self, event):
-        typed = self.var.get()
-        if not typed:
-            self.close_listbox()
+    def run(self):
+        try:
+            log_parser.setup_logging()
+            result = log_parser.parse_log(dev=self.dev, extra_data=self.extra_data)
+            self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
+            traceback.print_exc()
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Rivals 2 Log Parser")
+
+        # Set window icon
+        icon_file = "icon.ico" if sys.platform.startswith("win") else "icon_rgb.png"
+        try:
+            from PyInstaller import sys as pyi_sys
+
+            icon_path = os.path.join(pyi_sys._MEIPASS, icon_file)
+        except ImportError:
+            icon_path = os.path.join(os.path.dirname(__file__), icon_file)
+        if os.path.isfile(icon_path):
+            icon = QIcon(icon_path)
+            if not icon.isNull():
+                self.setWindowIcon(icon)
+
+        # Position window
+        screen = QApplication.primaryScreen().availableGeometry()
+        self.move(screen.width() - self.width(), 0)
+
+        self.setup_ui()
+        self.populate_dropdowns()
+        self.setup_reset_menus()
+        self.adjustSize()
+
+    def closeEvent(self, event):
+        if hasattr(self, "worker") and self.worker.isRunning():
+            self.worker.quit()
+            self.worker.wait()
+        event.accept()
+
+    def setup_ui(self):
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+
+        # Top section
+        top_layout = QHBoxLayout()
+
+        self.run_button = QPushButton("Run Log Parser")
+        self.run_button.clicked.connect(self.run_parser)
+        top_layout.addWidget(self.run_button)
+
+        top_layout.addStretch()
+
+        config_button = QPushButton("Config")
+        config_button.clicked.connect(lambda: self.open_log_file("config"))
+        top_layout.addWidget(config_button)
+
+        app_log_button = QPushButton("App Log")
+        app_log_button.clicked.connect(lambda: self.open_log_file("app"))
+        top_layout.addWidget(app_log_button)
+
+        rivals_log_button = QPushButton("Rivals Log")
+        rivals_log_button.clicked.connect(lambda: self.open_log_file("rivals"))
+        top_layout.addWidget(rivals_log_button)
+
+        self.debug_checkbox = QCheckBox("Debug")
+        top_layout.addWidget(self.debug_checkbox)
+
+        top_layout.addWidget(QLabel("Theme:"))
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(
+            [
+                "Default",
+                "Catppuccin Mocha",
+                "Catppuccin Latte",
+                "Dracula",
+                "Nord",
+                "Gruvbox Dark",
+            ]
+        )
+        self.theme_combo.currentTextChanged.connect(self.change_theme)
+        top_layout.addWidget(self.theme_combo)
+
+        main_layout.addLayout(top_layout)
+
+        # Output text
+        self.output_text = QTextEdit()
+        self.output_text.setReadOnly(True)
+        self.output_text.setMinimumHeight(100)
+        main_layout.addWidget(self.output_text, 1)  # stretch factor 1 to expand
+
+        # Bottom section
+        bottom_layout = QGridLayout()
+
+        # Buttons row
+        refresh_button = QPushButton("Refresh")
+        refresh_button.clicked.connect(self.refresh_top_row)
+        bottom_layout.addWidget(refresh_button, 0, 1)
+
+        times_button = QPushButton("Durations")
+        times_button.clicked.connect(self.get_match_times)
+        bottom_layout.addWidget(times_button, 0, 2)
+
+        copy_button = QPushButton("Copy")
+        copy_button.clicked.connect(self.generate_json)
+        bottom_layout.addWidget(copy_button, 0, 3)
+
+        paste_button = QPushButton("Paste JSON")
+        paste_button.clicked.connect(self.paste_json)
+        bottom_layout.addWidget(paste_button, 0, 4)
+
+        clear_button = QPushButton("Clear")
+        clear_button.clicked.connect(self.clear_matchup_fields)
+        bottom_layout.addWidget(clear_button, 0, 5)
+
+        # ELO section
+        bottom_layout.addWidget(QLabel("Opp ELO"), 1, 1)
+        self.opp_elo_spin = QSpinBox()
+        self.opp_elo_spin.setRange(-2, 3000)
+        self.opp_elo_spin.setValue(STARTING_DEFAULT)
+        bottom_layout.addWidget(self.opp_elo_spin, 2, 1)
+
+        bottom_layout.addWidget(QLabel("My New ELO"), 1, 2)
+        self.my_elo_spin = QSpinBox()
+        self.my_elo_spin.setRange(0, 3000)
+        self.my_elo_spin.setValue(int(self.get_current_elo()["data"]["current_elo"]))
+        bottom_layout.addWidget(self.my_elo_spin, 2, 2)
+
+        bottom_layout.addWidget(QLabel("ELO Delta"), 1, 3)
+        self.change_elo_spin = QSpinBox()
+        self.change_elo_spin.setRange(-50, 50)
+        self.change_elo_spin.setValue(0)
+        bottom_layout.addWidget(self.change_elo_spin, 2, 3)
+
+        # Name field
+        bottom_layout.addWidget(QLabel("Name"), 3, 1)
+        self.name_edit = QLineEdit()
+        self.name_edit.setMinimumWidth(30)
+        self.name_edit.setCompleter(QCompleter(self.get_opponent_names()))
+        bottom_layout.addWidget(self.name_edit, 3, 2, 1, 4)
+
+        # Game sections
+        bottom_layout.addWidget(QLabel("OppChar"), 4, 1)
+        bottom_layout.addWidget(QLabel("Stage"), 4, 2)
+        bottom_layout.addWidget(QLabel("FinalMove"), 4, 3)
+
+        self.opp_combos = []
+        self.stage_combos = []
+        self.move_combos = []
+        self.winner_checks = []
+        self.duration_spins = []
+
+        for x in range(3):
+            row = x + 5
+            bottom_layout.addWidget(QLabel(f"Game {x + 1}"), row, 0, Qt.AlignRight)
+
+            opp_combo = QComboBox()
+            opp_combo.addItem("Loading...")
+            opp_combo.setMinimumWidth(80)
+            bottom_layout.addWidget(opp_combo, row, 1)
+            self.opp_combos.append(opp_combo)
+
+            stage_combo = QComboBox()
+            stage_combo.addItem("Loading...")
+            stage_combo.setMinimumWidth(80)
+            bottom_layout.addWidget(stage_combo, row, 2)
+            self.stage_combos.append(stage_combo)
+
+            move_combo = QComboBox()
+            move_combo.addItem("Loading...")
+            move_combo.setMinimumWidth(80)
+            bottom_layout.addWidget(move_combo, row, 3)
+            self.move_combos.append(move_combo)
+
+            winner_check = QCheckBox("Opp")
+            bottom_layout.addWidget(winner_check, row, 4)
+            self.winner_checks.append(winner_check)
+
+            duration_spin = QSpinBox()
+            duration_spin.setRange(-1, 3000)
+            duration_spin.setValue(-1)
+            duration_spin.setMinimumWidth(50)
+            bottom_layout.addWidget(duration_spin, row, 5)
+            self.duration_spins.append(duration_spin)
+
+        main_layout.addLayout(bottom_layout)
+
+        # Set tab order: only name_edit and opp_elo_spin are tabbable
+        self.run_button.setFocusPolicy(Qt.NoFocus)
+        config_button.setFocusPolicy(Qt.NoFocus)
+        app_log_button.setFocusPolicy(Qt.NoFocus)
+        rivals_log_button.setFocusPolicy(Qt.NoFocus)
+        self.debug_checkbox.setFocusPolicy(Qt.NoFocus)
+        self.theme_combo.setFocusPolicy(Qt.NoFocus)
+        self.output_text.setFocusPolicy(Qt.NoFocus)
+        self.my_elo_spin.setFocusPolicy(Qt.NoFocus)
+        self.change_elo_spin.setFocusPolicy(Qt.NoFocus)
+        refresh_button.setFocusPolicy(Qt.NoFocus)
+        times_button.setFocusPolicy(Qt.NoFocus)
+        copy_button.setFocusPolicy(Qt.NoFocus)
+        clear_button.setFocusPolicy(Qt.NoFocus)
+        paste_button.setFocusPolicy(Qt.NoFocus)
+        for combo in self.opp_combos:
+            combo.setFocusPolicy(Qt.NoFocus)
+        for combo in self.stage_combos:
+            combo.setFocusPolicy(Qt.NoFocus)
+        for combo in self.move_combos:
+            combo.setFocusPolicy(Qt.NoFocus)
+        for check in self.winner_checks:
+            check.setFocusPolicy(Qt.NoFocus)
+        for spin in self.duration_spins:
+            spin.setFocusPolicy(Qt.ClickFocus)
+
+        # Connect signals
+        self.opp_combos[0].currentTextChanged.connect(self.sync_games)
+
+    def setup_reset_menus(self):
+        widgets_to_reset = (
+            [
+                self.opp_elo_spin,
+                self.my_elo_spin,
+                self.change_elo_spin,
+                self.name_edit,
+                self.theme_combo,
+                self.debug_checkbox,
+            ]
+            + self.opp_combos
+            + self.stage_combos
+            + self.move_combos
+            + self.winner_checks
+            + self.duration_spins
+        )
+
+        for widget in widgets_to_reset:
+            widget.setContextMenuPolicy(Qt.CustomContextMenu)
+            widget.customContextMenuRequested.connect(
+                lambda pos, w=widget: self.show_reset_menu(w, pos)
+            )
+
+    def show_reset_menu(self, widget, pos):
+        self.reset_widget(widget)
+
+    def reset_widget(self, widget):
+        if isinstance(widget, QSpinBox):
+            if widget == self.opp_elo_spin:
+                widget.setValue(STARTING_DEFAULT)
+            elif widget == self.my_elo_spin:
+                widget.setValue(int(self.get_current_elo()["data"]["current_elo"]))
+            elif widget == self.change_elo_spin:
+                widget.setValue(0)
+            elif widget in self.duration_spins:
+                widget.setValue(-1)
+        elif isinstance(widget, QComboBox):
+            widget.setCurrentIndex(0)
+        elif isinstance(widget, QLineEdit):
+            widget.clear()
+        elif isinstance(widget, QCheckBox):
+            widget.setChecked(False)
+
+    def change_theme(self, theme_name):
+        themes = {
+            "Default": "",
+            "Catppuccin Mocha": """
+                QWidget {
+                    background-color: #1e1e2e;
+                    color: #cdd6f4;
+                    font-family: Arial;
+                }
+                QPushButton {
+                    background-color: #313244;
+                    border: 1px solid #45475a;
+                    padding: 5px;
+                    color: #cdd6f4;
+                }
+                QPushButton:hover {
+                    background-color: #45475a;
+                }
+                QTextEdit {
+                    background-color: #181825;
+                    border: 1px solid #45475a;
+                    color: #cdd6f4;
+                }
+                QComboBox, QSpinBox, QLineEdit {
+                    background-color: #313244;
+                    border: 1px solid #45475a;
+                    color: #cdd6f4;
+                }
+                QLabel {
+                    color: #cdd6f4;
+                }
+                QCheckBox {
+                    color: #cdd6f4;
+                }
+            """,
+            "Catppuccin Latte": """
+                QWidget {
+                    background-color: #eff1f5;
+                    color: #4c4f69;
+                    font-family: Arial;
+                }
+                QPushButton {
+                    background-color: #bcc0cc;
+                    border: 1px solid #acb0be;
+                    padding: 5px;
+                    color: #4c4f69;
+                }
+                QPushButton:hover {
+                    background-color: #acb0be;
+                }
+                QTextEdit {
+                    background-color: #e6e9ef;
+                    border: 1px solid #acb0be;
+                    color: #4c4f69;
+                }
+                QComboBox, QSpinBox, QLineEdit {
+                    background-color: #bcc0cc;
+                    border: 1px solid #acb0be;
+                    color: #4c4f69;
+                }
+                QLabel {
+                    color: #4c4f69;
+                }
+                QCheckBox {
+                    color: #4c4f69;
+                }
+            """,
+            "Dracula": """
+                QWidget {
+                    background-color: #282a36;
+                    color: #f8f8f2;
+                    font-family: Arial;
+                }
+                QPushButton {
+                    background-color: #44475a;
+                    border: 1px solid #6272a4;
+                    padding: 5px;
+                    color: #f8f8f2;
+                }
+                QPushButton:hover {
+                    background-color: #6272a4;
+                }
+                QTextEdit {
+                    background-color: #21222c;
+                    border: 1px solid #6272a4;
+                    color: #f8f8f2;
+                }
+                QComboBox, QSpinBox, QLineEdit {
+                    background-color: #44475a;
+                    border: 1px solid #6272a4;
+                    color: #f8f8f2;
+                }
+                QLabel {
+                    color: #f8f8f2;
+                }
+                QCheckBox {
+                    color: #f8f8f2;
+                }
+            """,
+            "Nord": """
+                QWidget {
+                    background-color: #2e3440;
+                    color: #d8dee9;
+                    font-family: Arial;
+                }
+                QPushButton {
+                    background-color: #4c566a;
+                    border: 1px solid #5e81ac;
+                    padding: 5px;
+                    color: #d8dee9;
+                }
+                QPushButton:hover {
+                    background-color: #5e81ac;
+                }
+                QTextEdit {
+                    background-color: #3b4252;
+                    border: 1px solid #5e81ac;
+                    color: #d8dee9;
+                }
+                QComboBox, QSpinBox, QLineEdit {
+                    background-color: #4c566a;
+                    border: 1px solid #5e81ac;
+                    color: #d8dee9;
+                }
+                QLabel {
+                    color: #d8dee9;
+                }
+                QCheckBox {
+                    color: #d8dee9;
+                }
+            """,
+            "Gruvbox Dark": """
+                QWidget {
+                    background-color: #282828;
+                    color: #ebdbb2;
+                    font-family: Arial;
+                }
+                QPushButton {
+                    background-color: #504945;
+                    border: 1px solid #7c6f64;
+                    padding: 5px;
+                    color: #ebdbb2;
+                }
+                QPushButton:hover {
+                    background-color: #7c6f64;
+                }
+                QTextEdit {
+                    background-color: #32302f;
+                    border: 1px solid #7c6f64;
+                    color: #ebdbb2;
+                }
+                QComboBox, QSpinBox, QLineEdit {
+                    background-color: #504945;
+                    border: 1px solid #7c6f64;
+                    color: #ebdbb2;
+                }
+                QLabel {
+                    color: #ebdbb2;
+                }
+                QCheckBox {
+                    color: #ebdbb2;
+                }
+            """,
+        }
+        self.setStyleSheet(themes.get(theme_name, ""))
+
+    def open_log_file(self, file_name):
+        log_path = None
+        if file_name == "config":
+            log_path = os.path.join("config.ini")
+        elif file_name == "app":
+            log_path = os.path.join(config.log_dir, config.log_file)
+        elif file_name == "rivals":
+            log_path = RIVALS_LOG_FOLDER
+            if sys.platform.startswith("darwin"):
+                pass
+            elif os.name == "nt":
+                log_path = os.path.join(
+                    log_path,
+                    "AppData",
+                    "Local",
+                    "Rivals2",
+                    "Saved",
+                    "Logs",
+                    "Rivals2.log",
+                )
+            elif os.name == "posix":
+                log_path = os.path.join(log_path)
+            else:
+                return
+        if log_path and os.path.exists(log_path):
+            import subprocess
+
+            env = os.environ.copy()
+            if "LD_LIBRARY_PATH" in env:
+                del env["LD_LIBRARY_PATH"]
+            if sys.platform == "win32":
+                os.startfile(log_path)
+            elif sys.platform == "darwin":
+                subprocess.run(["open", log_path], env=env)
+            else:
+                subprocess.run(["xdg-open", log_path], env=env)
+
+    def get_final_move_top_list(self):
+        try:
+            res = requests.get(
+                f"http://{config.be_host}:{config.be_port}/movelist/top", timeout=10
+            )
+            res.raise_for_status()
+            return res.json()
+        except requests.exceptions.Timeout:
+            logger.error("Timeout fetching final move top list")
+            self.output_text.append(
+                "Error: Timeout fetching final move data from server."
+            )
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error fetching final move top list")
+            self.output_text.append(
+                "Error: Unable to connect to server for final move data."
+            )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error fetching final move top list: {e}")
+            self.output_text.append(
+                "Error: Failed to fetch final move data from server."
+            )
+        return {"status": "FAIL", "data": []}
+
+    def get_current_elo(self):
+        try:
+            res = requests.get(
+                f"http://{config.be_host}:{config.be_port}/current_tier", timeout=10
+            )
+            res.raise_for_status()
+            return res.json()
+        except requests.exceptions.Timeout:
+            logger.error("Timeout fetching current ELO")
+            self.output_text.append("Error: Timeout fetching current ELO from server.")
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error fetching current ELO")
+            self.output_text.append(
+                "Error: Unable to connect to server for current ELO."
+            )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error fetching current ELO: {e}")
+            self.output_text.append("Error: Failed to fetch current ELO from server.")
+        return {
+            "status": "FAIL",
+            "data": {
+                "current_elo": -2,
+                "tier": "N/A",
+                "tier_short": "N/A",
+                "last_game_number": -2,
+            },
+        }
+
+    def refresh_top_row(self):
+        self.my_elo_spin.setValue(int(self.get_current_elo()["data"]["current_elo"]))
+        self.change_elo_spin.setValue(0)
+
+    def get_match_times(self):
+        data = roll_up_durations([os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log")])
+        if not data:
             return
+        self.output_text.append(str(data))
+        last = data[list(data.keys())[-1]]["durations"]
+        for i, d in enumerate(self.duration_spins):
+            if i < len(last):
+                d.setValue(int(last[i]))
+            else:
+                d.setValue(-1)
 
-        matches = [name for name in self.autocomplete_list 
-                   if typed.lower() in name.lower()]
+    def get_opponent_names(self):
+        try:
+            response = requests.get(
+                f"http://{config.be_host}:{config.be_port}/opponent_names", timeout=10
+            )
+            response.raise_for_status()
+            return response.json()["data"]["names"]
+        except requests.exceptions.Timeout:
+            logger.error("Timeout fetching opponent names")
+            self.output_text.append(
+                "Error: Timeout fetching opponent names from server."
+            )
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error fetching opponent names")
+            self.output_text.append(
+                "Error: Unable to connect to server for opponent names."
+            )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error fetching opponent names: {e}")
+            self.output_text.append(
+                "Error: Failed to fetch opponent names from server."
+            )
+        return []
 
-        if matches:
-            self.show_listbox(matches)
+    def populate_dropdowns(self):
+        stages1 = {}
+        character_names = []
+        stage_names = []
+        move_names = []
+        characters_json = {"data": []}
+        stage_json = {"data": []}
+        moves_json = {"data": []}
+
+        try:
+            response = requests.get(
+                f"http://{config.be_host}:{config.be_port}/characters", timeout=10
+            )
+            response.raise_for_status()
+            characters_json = response.json()
+            for char in characters_json["data"]:
+                characters[char["display_name"]] = char["id"]
+                if char["id"] == -1:
+                    characters["sepior1"] = -1
+            character_names = list(characters.keys())
+        except requests.exceptions.Timeout:
+            self.output_text.append(
+                "Error: Timeout fetching character data from server."
+            )
+            logger.error("Timeout fetching characters")
+        except requests.exceptions.ConnectionError:
+            self.output_text.append(
+                "Error: Unable to connect to server for character data."
+            )
+            logger.error("Connection error fetching characters")
+        except requests.exceptions.RequestException as e:
+            self.output_text.append(
+                "Error: Failed to fetch character data from server."
+            )
+            logger.error(f"Request error fetching characters: {e}")
+
+        try:
+            response = requests.get(
+                f"http://{config.be_host}:{config.be_port}/stages", timeout=10
+            )
+            response.raise_for_status()
+            stage_json = response.json()
+            counter = -1
+            for stage in stage_json["data"]:
+                if stage["stage_type"] != "Doubles":
+                    if counter == -1 and stage["counter_pick"] == -1:
+                        stages1[stage["display_name"]] = stage["id"]
+                    if counter == -1 and stage["counter_pick"] == 0:
+                        stages["sepior1"] = -1
+                        stages1["sepior1"] = -1
+                    if stage["counter_pick"] == 0:
+                        counter = 0
+                        stages1[stage["display_name"]] = stage["id"]
+                    if counter == 0 and stage["counter_pick"] == 1:
+                        stages["sepior2"] = -1
+                        counter = 1
+                    stages[stage["display_name"]] = stage["id"]
+            stage_names = list(stages.keys())
+        except requests.exceptions.Timeout:
+            self.output_text.append("Error: Timeout fetching stage data from server.")
+            logger.error("Timeout fetching stages")
+        except requests.exceptions.ConnectionError:
+            self.output_text.append(
+                "Error: Unable to connect to server for stage data."
+            )
+            logger.error("Connection error fetching stages")
+        except requests.exceptions.RequestException as e:
+            self.output_text.append("Error: Failed to fetch stage data from server.")
+            logger.error(f"Request error fetching stages: {e}")
+
+        try:
+            response = requests.get(
+                f"http://{config.be_host}:{config.be_port}/movelist", timeout=10
+            )
+            response.raise_for_status()
+            moves_json = response.json()
+            sorted_moves = sorted(moves_json["data"], key=lambda x: x["list_order"])
+            top_moves_list = [
+                x["final_move_name"] for x in self.get_final_move_top_list()["data"]
+            ]
+            for move in sorted_moves:
+                display_name = move["display_name"]
+                if display_name in top_moves_list:
+                    display_name += " *"
+                moves[display_name] = move["id"]
+                if move["id"] == -1:
+                    moves["sepior"] = -1
+            move_names = list(moves.keys())
+        except requests.exceptions.Timeout:
+            self.output_text.append("Error: Timeout fetching move data from server.")
+            logger.error("Timeout fetching moves")
+        except requests.exceptions.ConnectionError:
+            self.output_text.append("Error: Unable to connect to server for move data.")
+            logger.error("Connection error fetching moves")
+        except requests.exceptions.RequestException as e:
+            self.output_text.append("Error: Failed to fetch move data from server.")
+            logger.error(f"Request error fetching moves: {e}")
+
+        self.output_text.append(
+            f"Fetched {len([x for x in characters_json['data'] if x['list_order'] > 0])} characters, {len([x for x in stage_json['data'] if x['list_order'] > 0])} stages and {len([x for x in moves_json['data'] if x['list_order'] > 0])} moves."
+        )
+
+        for x in range(3):
+            self.opp_combos[x].clear()
+            self.opp_combos[x].addItems(character_names)
+            self.stage_combos[x].clear()
+            if x == 0:
+                self.stage_combos[x].addItems(list(stages1.keys()))
+            else:
+                self.stage_combos[x].addItems(stage_names)
+            self.move_combos[x].clear()
+            self.move_combos[x].addItems(move_names)
+
+        # Add separators for "sepior" items
+        for combo in self.opp_combos + self.stage_combos + self.move_combos:
+            separators = []
+            for i in range(combo.count()):
+                if combo.itemText(i).startswith("sepior"):
+                    separators.append(i)
+            for idx in reversed(separators):
+                combo.insertSeparator(idx)
+                combo.removeItem(idx + 1)
+
+    def are_required_dropdowns_filled(self):
+        return all(
+            [
+                self.opp_combos[0].currentText().strip() != "N/A",
+                self.stage_combos[0].currentText().strip() != "N/A",
+                self.opp_combos[1].currentText().strip() != "N/A",
+                self.stage_combos[1].currentText().strip() != "N/A",
+            ]
+        )
+
+    def clear_matchup_fields(self):
+        for combo in self.opp_combos + self.stage_combos + self.move_combos:
+            combo.setCurrentText("N/A")
+        for check in self.winner_checks:
+            check.setChecked(False)
+        for spin in self.duration_spins:
+            spin.setValue(-1)
+        self.name_edit.clear()
+        self.opp_elo_spin.setValue(STARTING_DEFAULT)
+
+    def generate_json(self):
+        elo_values = self.get_current_elo()
+        jsond = {}
+        jsond["match_date"] = (
+            datetime.now(timezone.utc)
+            .replace(tzinfo=None)
+            .isoformat(timespec="seconds")
+        )
+        jsond["elo_rank_new"] = self.my_elo_spin.value()
+        jsond["elo_change"] = self.change_elo_spin.value()
+        jsond["elo_rank_old"] = jsond["elo_rank_new"] - jsond["elo_change"]
+        jsond["match_win"] = 1 if jsond["elo_change"] >= 0 else 0
+        jsond["match_forfeit"] = -1
+        jsond["ranked_game_number"] = int(elo_values["data"]["last_game_number"]) + 1
+        jsond["total_wins"] = (
+            int(elo_values["data"]["total_wins"]) + 1
+            if jsond["match_win"]
+            else int(elo_values["data"]["total_wins"])
+        )
+        jsond["win_streak_value"] = (
+            int(elo_values["data"]["win_streak_value"]) + 1
+            if jsond["match_win"]
+            else int(elo_values["data"]["win_streak_value"])
+        )
+        jsond["opponent_elo"] = self.opp_elo_spin.value()
+        jsond["opponent_name"] = self.name_edit.text() or ""
+        for x in range(3):
+            jsond[f"game_{x + 1}_char_pick"] = 2
+            jsond[f"game_{x + 1}_opponent_pick"] = int(
+                characters.get(self.opp_combos[x].currentText(), -1)
+            )
+            jsond[f"game_{x + 1}_stage"] = int(
+                stages.get(self.stage_combos[x].currentText(), -1)
+            )
+            jsond[f"game_{x + 1}_final_move_id"] = int(
+                moves.get(self.move_combos[x].currentText().replace(" *", ""), -1)
+            )
+            jsond[f"game_{x + 1}_winner"] = (
+                2
+                if self.winner_checks[x].isChecked()
+                else (1 if self.opp_combos[x].currentText() != "N/A" else -1)
+            )
+            jsond[f"game_{x + 1}_duration"] = self.duration_spins[x].value()
+
+        def get_final_move_id(data):
+            for i in [3, 2, 1]:
+                fmid = data[f"game_{i}_final_move_id"]
+                if fmid != -1:
+                    return fmid
+            return -2
+
+        jsond["final_move_id"] = get_final_move_id(jsond)
+        jsond["notes"] = "Added via JSON lol"
+        logger.debug(json.dumps(jsond))
+        clipboard = QApplication.clipboard()
+        clipboard.setText(json.dumps(jsond, indent=4))
+
+    def paste_json(self):
+        clipboard = QApplication.clipboard()
+        try:
+            data = json.loads(clipboard.text())
+            self.my_elo_spin.setValue(data.get("elo_rank_new", 0))
+            self.change_elo_spin.setValue(data.get("elo_change", 0))
+            self.opp_elo_spin.setValue(data.get("opponent_elo", 1000))
+            self.name_edit.setText(data.get("opponent_name", ""))
+            for x in range(3):
+                opp_id = data.get(f"game_{x + 1}_opponent_pick", -1)
+                opp_name = next(
+                    (k for k, v in characters.items() if v == opp_id), "N/A"
+                )
+                self.opp_combos[x].setCurrentText(opp_name)
+                stage_id = data.get(f"game_{x + 1}_stage", -1)
+                stage_name = next(
+                    (k for k, v in stages.items() if v == stage_id), "N/A"
+                )
+                self.stage_combos[x].setCurrentText(stage_name)
+                move_id = data.get(f"game_{x + 1}_final_move_id", -1)
+                move_name = next((k for k, v in moves.items() if v == move_id), "N/A")
+                self.move_combos[x].setCurrentText(move_name)
+                winner = data.get(f"game_{x + 1}_winner", -1)
+                self.winner_checks[x].setChecked(winner == 2)
+                duration = data.get(f"game_{x + 1}_duration", -1)
+                self.duration_spins[x].setValue(duration)
+        except json.JSONDecodeError:
+            QMessageBox.warning(self, "Error", "Invalid JSON in clipboard.")
+
+    def run_parser(self):
+        self.run_button.setEnabled(False)
+        extra_data = {}
+        if self.are_required_dropdowns_filled():
+            extra_data = {
+                "game_1_char_pick": int(characters.get("Loxodont", -1)),
+                "game_1_opponent_pick": int(
+                    characters.get(self.opp_combos[0].currentText(), -1)
+                ),
+                "game_1_stage": int(stages.get(self.stage_combos[0].currentText(), -1)),
+                "game_1_winner": 2
+                if self.winner_checks[0].isChecked()
+                else (1 if self.opp_combos[0].currentText() != "N/A" else -1),
+                "game_1_final_move_id": int(
+                    moves.get(self.move_combos[0].currentText().replace(" *", ""), -1)
+                ),
+                "game_1_duration": self.duration_spins[0].value(),
+                "game_2_char_pick": int(characters.get("Loxodont", -1)),
+                "game_2_opponent_pick": int(
+                    characters.get(self.opp_combos[1].currentText(), -1)
+                ),
+                "game_2_stage": int(stages.get(self.stage_combos[1].currentText(), -1)),
+                "game_2_winner": 2
+                if self.winner_checks[1].isChecked()
+                else (1 if self.opp_combos[1].currentText() != "N/A" else -1),
+                "game_2_final_move_id": int(
+                    moves.get(self.move_combos[1].currentText().replace(" *", ""), -1)
+                ),
+                "game_2_duration": self.duration_spins[1].value(),
+                "game_3_char_pick": int(characters.get("Loxodont", -1)),
+                "game_3_opponent_pick": int(
+                    characters.get(self.opp_combos[2].currentText(), -1)
+                ),
+                "game_3_stage": int(stages.get(self.stage_combos[2].currentText(), -1)),
+                "game_3_winner": 2
+                if self.winner_checks[2].isChecked()
+                else (1 if self.opp_combos[2].currentText() != "N/A" else -1),
+                "game_3_final_move_id": int(
+                    moves.get(self.move_combos[2].currentText().replace(" *", ""), -1)
+                ),
+                "game_3_duration": self.duration_spins[2].value(),
+                "opponent_elo": self.opp_elo_spin.value(),
+                "opponent_name": self.name_edit.text() or "",
+                "final_move_id": -1,
+            }
+        self.worker = ParserWorker(self.debug_checkbox.isChecked(), extra_data)
+        self.worker.finished.connect(self.on_parser_finished)
+        self.worker.error.connect(self.on_parser_error)
+        self.worker.start()
+
+    def on_parser_finished(self, result):
+        if result == -1:
+            self.output_text.append("No matches found or no new matches to add.")
         else:
-            self.close_listbox()
+            self.output_text.append(
+                f"Log parsed. Added {len(result)} match{'es' if len(result) != 1 else ''}: {','.join(f'{str(x.elo_rank_new)}({str(x.elo_change)})' for x in result) if result else ''}"
+            )
+        self.run_button.setEnabled(True)
+        self.refresh_top_row()
+        self.name_edit.setCompleter(QCompleter(self.get_opponent_names()))
 
-    def show_listbox(self, matches):
-        if self.listbox:
-            self.listbox.destroy()
+    def on_parser_error(self, error_msg):
+        self.output_text.append(f"Error: {error_msg}")
+        self.run_button.setEnabled(True)
 
-        self.listbox = tk.Listbox(self.winfo_toplevel(), width=self["width"])
-        x = self.winfo_x()
-        y = self.winfo_y() + self.winfo_height()
-        self.listbox.place(x=x, y=y)
+    def sync_games(self):
+        self.opp_combos[1].setCurrentText(self.opp_combos[0].currentText())
 
-        for match in matches:
-            self.listbox.insert(tk.END, match)
-
-        self.listbox.bind("<<ListboxSelect>>", self.on_select)
-
-    def on_select(self, event):
-        if self.listbox:
-            selection = self.listbox.get(self.listbox.curselection())
-            self.var.set(selection)
-            self.close_listbox()
-
-    def close_listbox(self):
-        if self.listbox:
-            self.listbox.destroy()
-            self.listbox = None
-
-    def update_autocomplete_list(self, new_list: list[str]):
-        """Call this to refresh the list of autocomplete names."""
-        self.autocomplete_list = new_list
-
-def open_log_file(file_name):
-    log_path = None
-    if file_name == "config":
-        log_path = os.path.join("config.ini")
-    if file_name == "app":
-        log_path = os.path.join(config.log_dir, config.log_file)
-    if file_name == "rivals":
-        log_path = RIVALS_LOG_FOLDER
-        if sys.platform.startswith('darwin'):  # macOS
-            pass
-        elif os.name == "nt":
-            log_path = os.path.join(log_path, "AppData", "Local", "Rivals2", "Saved", "Logs", "Rivals2.log" )
-        elif os.name == 'posix':  # Linux
-            log_path = os.path.join(log_path)
-        else:
-            return
-    print(log_path)
-    if log_path == None: return
-    if sys.platform.startswith('darwin'):  # macOS
-        subprocess.call(('open', log_path))
-    elif os.name == 'nt':  # Windows
-        os.startfile(log_path)
-    elif os.name == 'posix':  # Linux
-        subprocess.call(('xdg-open', log_path))
-
-def get_final_move_top_list() -> dict:
-    res = requests.get(f"http://{config.be_host}:{config.be_port}/movelist/top")
-    res.raise_for_status()
-    if res.status_code == 200:
-        json = res.json()
-        return json
-    return {"status":"FAIL","data":{"current_elo":-2,"tier":"N/A","tier_short":"N/A", "last_game_number": -2}}
-
-def get_current_elo() -> dict:
-    res = requests.get(f"http://{config.be_host}:{config.be_port}/current_tier")
-    res.raise_for_status()
-    if res.status_code == 200:
-        json = res.json()
-        return json
-    return {"status":"FAIL","data":{"current_elo":-2,"tier":"N/A","tier_short":"N/A", "last_game_number": -2}}
-
-def refresh_top_row() -> None:
-    my_elo.set(get_current_elo()["data"]["current_elo"])
-    change_elo.set(0)
-
-def get_match_times() -> None:
-    data = roll_up_durations([os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log")])
-    if not data:
-        return
-    output_text.configure(state="normal")
-    output_text.insert(tk.END, f"{str(data)}\n")
-    output_text.see(tk.END)
-    output_text.configure(state="disabled")
-    last = data[list(data.keys())[-1]]['durations']
-    for i, d in enumerate(duration_entries):
-        d.set(int(last[i]))
-
-
-def get_opponent_names():
-    response = requests.get(f"http://{config.be_host}:{config.be_port}/opponent_names", timeout=5)
-    response.raise_for_status()
-    return response.json()["data"]['names']
 
 def setup_logging():
     os.makedirs(config.log_dir, exist_ok=True)
-    
+
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG if int(config.debug) else logging.INFO) 
+    logger.setLevel(logging.DEBUG if int(config.debug) else logging.INFO)
     logger.info(logger.level)
 
     formatter = logging.Formatter(
-        '%(asctime)s - %(module)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        "%(asctime)s - %(module)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
     file_handler = RotatingFileHandler(
-        os.path.join(config.log_dir, config.log_file), 
-        maxBytes=int(config.max_log_size), 
-        backupCount=int(config.backup_count)
+        os.path.join(config.log_dir, config.log_file),
+        maxBytes=int(config.max_log_size),
+        backupCount=int(config.backup_count),
     )
 
     file_handler.setFormatter(formatter)
@@ -171,440 +942,12 @@ def setup_logging():
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
 
-def update_option_menu(option_menu: OptionMenu, var, options):
-    menu: tk.Menu = option_menu["menu"]
-    menu.delete(0, "end")
-    for opt in options:
-        if "sepior" in opt:
-            menu.add_separator()
-        else:
-            menu.add_command(label=opt, command=lambda v=opt: var.set(v))
-    if options:
-        var.set(options[0])
 
-def update_option_menu_with_category_separators(option_menu: OptionMenu, var: tk.StringVar, sorted_moves: list[dict]):
-    menu: tk.Menu = option_menu["menu"]
-    menu.delete(0, "end")
-    top_moves = [x["final_move_name"] for x in get_final_move_top_list()['data']]
-    last_category = sorted_moves[0]["category"] if sorted_moves else None
-
-    for i, move in enumerate(sorted_moves):
-        display_name = move["display_name"]
-        category = move["category"]
-        if display_name in top_moves:
-            display_name += " *"
-        menu.add_command(label=display_name, command=lambda v=display_name: var.set(v))
-
-        next_move = sorted_moves[i + 1] if i + 1 < len(sorted_moves) else None
-        next_category = next_move["category"] if next_move else None
-
-        if category != next_category:
-            menu.add_separator()
-
-    if sorted_moves:
-        var.set(sorted_moves[0]["display_name"])
-
-
-def populate_dropdowns(opp_dropdowns: list[OptionMenu], stage_dropdowns: list[OptionMenu], move_dropdowns: list[OptionMenu]):
-    try:
-        stages1 = {}
-        response = requests.get(f"http://{config.be_host}:{config.be_port}/characters", timeout=5)
-        response.raise_for_status()
-        characters_json = response.json()
-        for char in characters_json['data']:
-            characters[char["display_name"]] = char["id"]
-            if char["id"] == -1: characters["sepior1"] = -1
-        character_names = list(characters.keys())
-    except Exception as e:
-        output_text.configure(state="normal")
-        output_text.insert(tk.END, f"Error fetching character data: {e}\n")
-        output_text.see(tk.END)
-        output_text.configure(state="disabled")
-        logger.error(f"Charlist failed to generate: {e}")
-
-    try:
-        response = requests.get(f"http://{config.be_host}:{config.be_port}/stages", timeout=5)
-        response.raise_for_status()
-        stage_json = response.json()
-        counter = -1
-        for stage in stage_json['data']:
-            if stage['stage_type'] != "Doubles":
-                if counter == -1 and stage["counter_pick"] == -1:
-                    stages1[stage["display_name"]] = stage["id"]
-                if counter == -1 and stage["counter_pick"] == 0:
-                    stages["sepior1"] = -1
-                    stages1["sepior1"] = -1
-                if stage["counter_pick"] == 0 :
-                    counter = 0
-                    stages1[stage["display_name"]] = stage["id"]
-                if counter == 0 and stage["counter_pick"] == 1:
-                    stages["sepior2"] = -1
-                    counter = 1
-                stages[stage["display_name"]] = stage["id"]
-                    
-        stage_names = list(stages.keys())
-    except Exception as e:
-        output_text.configure(state="normal")
-        output_text.insert(tk.END, f"Error fetching character data: {e}\n")
-        output_text.see(tk.END)
-        output_text.configure(state="disabled")        
-        logger.error(f"Stagelist failed to generate: {e}")
-
-    try:
-        response = requests.get(f"http://{config.be_host}:{config.be_port}/movelist", timeout=5)
-        response.raise_for_status()
-        moves_json = response.json()
-        sorted_moves = sorted(moves_json['data'], key=lambda x: x['list_order'])
-        for move in sorted_moves:
-            moves[move["display_name"]] = move["id"]
-            if move["id"] == -1: 
-                moves["sepior"] = -1
-        move_names = list(moves.keys())
-    except Exception as e:
-        output_text.configure(state="normal")
-        output_text.insert(tk.END, f"Error fetching character data: {e}\n")
-        output_text.see(tk.END)
-        output_text.configure(state="disabled")
-        logger.error(f"Movelist failed to generate: {e}")
-    
-    output_text.configure(state="normal")
-    output_text.insert(tk.END, f"Fetched {len([x for x in characters_json['data'] if x['list_order'] > 0])} characters, {len([x for x in stage_json['data'] if x['list_order'] > 0])} stages and {len([x for x in moves_json['data'] if x['list_order'] > 0])} moves.\n")
-    output_text.see(tk.END)
-    output_text.configure(state="disabled")
-
-    try:            
-        for x in range(3):
-            update_option_menu(opp_dropdowns[x], opp_vars[x], character_names)
-            if x == 0:
-                update_option_menu(stage_dropdowns[x], stage_vars[x], list(stages1.keys()))
-            else:
-                update_option_menu(stage_dropdowns[x], stage_vars[x], stage_names)
-            update_option_menu_with_category_separators(move_dropdowns[x], move_vars[x], sorted_moves)
-
-
-    except Exception as e:
-        output_text.configure(state="normal")
-        output_text.insert(tk.END, f"Error updating data: {e}\n")
-        output_text.see(tk.END)
-        output_text.configure(state="disabled")
-
-# def populate_movelist(move_list: OptionMenu):
-#     try:
-#         response = requests.get(f"http://{config.be_host}:{config.be_port}/movelist", timeout=5)
-#         response.raise_for_status()
-#         moves_json = response.json()
-#         sorted_moves = sorted(moves_json['data'], key=lambda x: x['list_order'])
-#         print(sorted_moves)
-#         for move in sorted_moves:
-#             moves[move["display_name"]] = move["id"]
-#             if move["id"] == -1: move["sepior1"] = -1
-#         move_names = list(moves.keys())
-#     except Exception as e:
-#         logger.error(f"Movelist failed to generate: {e}")
-#     update_option_menu_with_categories(move_list, move_var, move_names)
-
-def are_required_dropdowns_filled():
-    return all([
-        opp_vars[0].get().strip() != "N/A",
-        stage_vars[0].get().strip() != "N/A",
-        opp_vars[1].get().strip() != "N/A",
-        stage_vars[1].get().strip() != "N/A",
-    ])
-
-def show_debug():
-    output_text.configure(state="normal")
-    output_text.insert(tk.END, f"{cbvar.get()}\n")
-    output_text.configure(state="disabled")
-# def adjust_elo(delta):
-#     try:
-#         current = opp_elo.get()
-#     except tk.TclError:
-#         current = 0
-#     opp_elo.set(current + delta)
-
-# def on_mousewheel(event: tk.Event):
-#     # event.delta is positive (up) or negative (down)
-#     shift = event.state & 0x0001 #type: ignore
-#     delta = 5 if shift else 1
-#     direction = 1 if event.delta > 0 else -1
-#     adjust_elo(delta * direction)
-
-def clear_matchup_fields():
-    for x in opp_vars:
-        x.set("N/A")
-    for x in stage_vars:
-        x.set("N/A")
-    for x in winner_vars:
-        x.set(False)
-    for x in move_vars:
-        x.set("N/A")
-    for x in duration_vars:
-        x.set(-1)
-    name_var.set("")
-    opp_elo.set(STARTING_DEFAULT)
-
-def clear_field(event, field_name_var: tk.StringVar, value: str):
-    logger.debug(f"{event} - {field_name_var} set to {value}")
-    field_name_var.set(value)
-
-def generate_json():
-    elo_values = get_current_elo()
-    jsond = {}
-    jsond["match_date"] = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
-    jsond["elo_rank_new"] = int(my_elo.get())
-    jsond["elo_change"] = int(change_elo.get())
-    jsond["elo_rank_old"] = jsond["elo_rank_new"] - jsond["elo_change"]
-    jsond["match_win"] =  1 if jsond["elo_change"] >= 0 else 0
-    jsond["match_forfeit"] =  -1
-    jsond["ranked_game_number"] = int(elo_values["data"]["last_game_number"])+1
-    jsond["total_wins"] = int(elo_values["data"]["total_wins"]) + 1 if jsond["match_win"] else int(elo_values["data"]["total_wins"])
-    jsond["win_streak_value"] = int(elo_values["data"]["win_streak_value"]) + 1 if jsond["match_win"] else int(elo_values["data"]["win_streak_value"])
-    jsond["opponent_elo"] = int(opp_elo.get())
-    jsond["opponent_name"] = name_var.get() if name_var.get() is not None else ""
-    for x in range(3):
-        jsond[f"game_{x+1}_char_pick"] = 2
-        jsond[f"game_{x+1}_opponent_pick"] = int(characters.get(opp_vars[x].get(), -1))
-        jsond[f"game_{x+1}_stage"] = int(stages.get(stage_vars[x].get(), -1))
-        jsond[f"game_{x+1}_final_move_id"] = int(moves.get(move_vars[x].get().replace(" *", ""), -1))
-        jsond[f"game_{x+1}_winner"] = 2 if winner_vars[x].get() else (1 if opp_vars[x].get() != "N/A" else -1)
-        jsond[f"game_{x+1}_duration"] = int(duration_vars[x].get())
-    jsond["final_move_id"] = -2
-    jsond["notes"] = "Added via JSON lol"
-    logger.debug(json.dumps(jsond))
-    root.clipboard_clear()
-    root.clipboard_append(json.dumps(jsond, indent=4))
-    root.update()
-
-def run_parser(dev: int = 0):
-    # output_text.insert(tk.END, "Running log parser...\n")
-    output_text.configure(state="normal")
-    output_text.see(tk.END)
-    output_text.configure(state="disabled")
-    run_button.config(state="disabled")
-
-    def worker():
-        try:
-            log_parser.setup_logging()
-            extra_data = {}
-            if are_required_dropdowns_filled():
-                for x in range(3): int(moves.get(move_vars[x].get(), -1))
-                extra_data = {
-                    "game_1_char_pick": int(characters.get("Loxodont", -1)),
-                    "game_1_opponent_pick": int(characters.get(opp_vars[0].get(), -1)),
-                    "game_1_stage": int(stages.get(stage_vars[0].get(), -1)),
-                    "game_1_winner": 2 if winner_vars[0].get() else (1 if opp_vars[0].get() != "N/A" else -1),
-                    "game_1_final_move_id": int(moves.get(move_vars[0].get().replace(" *", ""), -1)),
-                    "game_1_duration": int(duration_vars[0].get()),
-                    "game_2_char_pick": int(characters.get("Loxodont", -1)),
-                    "game_2_opponent_pick": int(characters.get(opp_vars[1].get(), -1)),
-                    "game_2_stage": int(stages.get(stage_vars[1].get(), -1)),
-                    "game_2_winner": 2 if winner_vars[1].get() else (1 if opp_vars[1].get() != "N/A" else -1),
-                    "game_2_final_move_id": int(moves.get(move_vars[1].get().replace(" *", ""), -1)),
-                    "game_2_duration": int(duration_vars[1].get()),
-                    "game_3_char_pick": int(characters.get("Loxodont", -1)),
-                    "game_3_opponent_pick": int(characters.get(opp_vars[2].get(), -1)),
-                    "game_3_stage": int(stages.get(stage_vars[2].get(), -1)),
-                    "game_3_winner": 2 if winner_vars[2].get() else (1 if opp_vars[2].get() != "N/A" else -1),
-                    "game_3_final_move_id": int(moves.get(move_vars[2].get().replace(" *", ""), -1)),
-                    "game_3_duration": int(duration_vars[2].get()),
-                    "opponent_elo": int(opp_elo.get()),
-                    "opponent_name": name_var.get() if name_var.get() is not None else "",
-                    "final_move_id": -1
-                }
-            result = log_parser.parse_log(dev=cbvar.get(), extra_data=extra_data)
-            if result == -1:
-                output_text.configure(state="normal")
-                output_text.insert(tk.END, "No matches found or no new matches to add.\n")
-                output_text.see(tk.END)
-                output_text.configure(state="disabled")
-                run_button.config(state="normal")
-                return
-            output_text.configure(state="normal")
-            output_text.insert(tk.END, f"Log parsed. Added {len(result)} match{'es' if len(result) != 1 else ''}: {[",".join(f"{str(x.elo_rank_new)}({str(x.elo_change)})" for x in result)] if result else ""}\n") # type: ignore
-            output_text.see(tk.END)
-            output_text.configure(state="disabled")
-            if cbvar.get():
-                output_text.see(tk.END)
-        except Exception as e:
-            output_text.configure(state="normal")
-            output_text.insert(tk.END, f"Error: {e}\n")
-            output_text.configure(state="disabled")
-            traceback.print_exc()
-        finally:
-            run_button.config(state="normal")
-            refresh_top_row()
-            name_field.update_autocomplete_list(get_opponent_names())
-
-    threading.Thread(target=worker).start()
-
-
-setup_logging()
-
-root = tk.Tk()
-root.title("Rivals 2 Log Parser")
-
-# --- SET WINDOW ICON ---
-icon_file = "icon.ico" if sys.platform.startswith("win") else "icon.png"
-icon_path = os.path.join(icon_file)
-
-if os.path.isfile(icon_path):
-    if sys.platform.startswith("win"):
-        root.iconbitmap(icon_path)                    # Windows: .ico
-    else:
-        img = tk.PhotoImage(file=icon_path)
-        root.iconphoto(True, img)                     # Linux/macOS: .png
-else:
-    print(f"[WARN] Icon not found: {icon_path}")
-
-# dropdowns
-opp_vars = [] * 3 
-opp_dropdowns: list[OptionMenu] = []
-stage_vars = []
-stage_dropdowns: list[OptionMenu] = []
-winner_vars = []
-move_dropdowns: list[OptionMenu] = []
-move_vars = []
-duration_vars = []
-duration_entries = []
-
-frame = Frame(root, borderwidth=1, relief="sunken", padding=2)
-frame.pack(fill="both", expand=True)
-
-topframe = Frame(frame, borderwidth=1, relief="sunken",)
-topframe.pack(fill="both", expand=True)
-
-run_button = Button(topframe, text="Run Log Parser", command=run_parser, takefocus=False)
-run_button.pack(side=tk.LEFT)
-
-spacer = Label(topframe)
-spacer.pack(side=tk.LEFT, expand=True)
-
-Button(topframe, text="Config", command=lambda: open_log_file("config"), takefocus=False).pack(side=tk.RIGHT, pady=10)
-Button(topframe, text="App Log", command=lambda: open_log_file("app"), takefocus=False).pack(side=tk.RIGHT, pady=10)
-Button(topframe, text="Rivals Log", command=lambda: open_log_file("rivals"), takefocus=False).pack(side=tk.RIGHT, pady=10)
-
-cbvar = tk.IntVar()
-run_switch = Checkbutton(topframe, text="Debug",  variable=cbvar, takefocus=False)
-run_switch.pack(side=tk.RIGHT)
-
-output_text = scrolledtext.ScrolledText(frame, width=40, height=20, takefocus=False)
-output_text.pack(fill="both", expand=False)
-output_text.configure(state='disabled')
-
-bottom_frame = Frame(root, borderwidth=2, relief="sunken", padding=2)
-bottom_frame.pack(fill="x")
-
-Label(bottom_frame, text="Opp ELO").grid(row=0, column=1)
-opp_elo = tk.IntVar(value=STARTING_DEFAULT)
-opp_elo_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=opp_elo, width=10)
-opp_elo_entry.grid(row=1, column=1, padx=5)
-
-Label(bottom_frame, text="My New ELO").grid(row=0, column=2)
-my_elo = tk.IntVar()
-my_elo.set(int(get_current_elo()["data"]["current_elo"]))
-my_elo_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=my_elo, width=10, takefocus=False)
-my_elo_entry.grid(row=1, column=2, padx=5, sticky="w")
-
-Label(bottom_frame, text="ELO Delta").grid(row=0, column=3 )
-change_elo = tk.IntVar(value=0)
-change_elo_entry = Spinbox(bottom_frame, from_=-50, to=50, textvariable=change_elo, width=10, takefocus=False)
-change_elo_entry.grid(row=1, column=3, padx=2, sticky="w")
-
-refresh_button = Button(bottom_frame, text="Refresh", command=refresh_top_row, takefocus=False)
-refresh_button.grid(row=1, column=4, padx=2, sticky="w")
-
-times_button = Button(bottom_frame, text="Durations", command=get_match_times, takefocus=False)
-times_button.grid(row=1, column=5, padx=2, sticky="w")
-
-copy_button = Button(bottom_frame, text="Copy", command=generate_json, takefocus=False)
-copy_button.grid(row=1, column=6, padx=2, sticky="e")
-
-clear_button = Button(bottom_frame, text="Clear", command=clear_matchup_fields, takefocus=False)
-clear_button.grid(row=1, column=7, padx=2, sticky='e')
-
-Label(bottom_frame, text=f"").grid(row=2, column=0, sticky='n')
-Label(bottom_frame, text=f"OppChar").grid(row=2, column=1, sticky='n')
-Label(bottom_frame, text=f"Stage").grid(row=2, column=2, sticky='n')
-Label(bottom_frame, text=f"").grid(row=2, column=4, sticky='n')
-Label(bottom_frame, text=f"FinalMove").grid(row=2, column=3, sticky='n')
-
-def sync_games(*args):
-    opp_vars[1].set(opp_vars[0].get())
-
-for x in range(3):
-    delta = 3
-    Label(bottom_frame, text=f"Game {x+1}").grid(row=x+delta, column=0, sticky="e")
-
-    opp_var = tk.StringVar()
-    stage_var = tk.StringVar()
-    winner_var = tk.BooleanVar()
-    move_var = tk.StringVar()
-    duration_var = tk.IntVar(value=-1)
-
-    opp_dropdown = OptionMenu(bottom_frame, opp_var, "Loading...")
-    if x == 0:
-        opp_var.trace_add("write", sync_games)
-    
-
-    stage_dropdown = OptionMenu(bottom_frame, stage_var, "Loading...")
-    winner_checkbox = Checkbutton(bottom_frame, text="Opp", variable=winner_var)
-    move_dropdown = OptionMenu(bottom_frame, move_var, "Loading...")
-    duration_entry = Spinbox(bottom_frame, from_=0, to=3000, textvariable=duration_var, width=3, takefocus=False)
-    
-    opp_dropdown.config(width=10)
-    stage_dropdown.config(width=10)
-    move_dropdown.config(width=10)
-
-    opp_dropdown.bind(sequence="<Button-3>", func=lambda event, var=opp_var: clear_field(event, var, "N/A"))
-    stage_dropdown.bind(sequence="<Button-3>", func=lambda event, var=stage_var: clear_field(event, var, "N/A"))
-    move_dropdown.bind(sequence="<Button-3>", func=lambda event, var=move_var: clear_field(event, var, "N/A"))
-    duration_entry.bind(sequence="<Button-3>", func=lambda event, var=duration_var: clear_field(event, var, "-1"))
-
-    opp_dropdown.grid(row=x+delta, column=1, padx=2, sticky="w")
-    stage_dropdown.grid(row=x+delta, column=2, padx=2, sticky="w")
-    move_dropdown.grid(row=x+delta, column=3, padx=2, sticky="w")
-    winner_checkbox.grid(row=x+delta, column=4, padx=2, sticky="w")
-    duration_entry.grid(row=x+delta, column=5, padx=2, sticky="w")
-
-    opp_dropdown.config(takefocus=False)
-    stage_dropdown.config(takefocus=False)
-    move_dropdown.config(takefocus=False)
-    winner_checkbox.config(takefocus=False)
-    
-    opp_vars.append(opp_var)
-    stage_vars.append(stage_var)
-    winner_vars.append(winner_var)
-    move_vars.append(move_var)
-    duration_vars.append(duration_var)
-
-    opp_dropdowns.append(opp_dropdown)
-    stage_dropdowns.append(stage_dropdown)
-    move_dropdowns.append(move_dropdown)
-    duration_entries.append(duration_entry)
-
-
-name_label = Label(bottom_frame, text="Name").grid(row=3, column=6, padx=2, sticky='w')
-name_var = tk.StringVar()
-name_field = AutocompleteEntry(get_opponent_names(), bottom_frame, textvariable=name_var)
-name_field.grid(row=3, column=7, padx=2, sticky='e')
-name_field.bind(sequence="<Button-3>", func=lambda event, var=opp_var: clear_field(event, name_var, ""))
-
-style = Style()
-style.theme_use(themename="classic")
-populate_dropdowns(opp_dropdowns, stage_dropdowns, move_dropdowns)
-
-root.update_idletasks()
-root.geometry(root.geometry())
-root.resizable(False, False)
-
-root.update_idletasks()
-screen_width = root.winfo_screenwidth()
-screen_height = root.winfo_screenheight()
-window_width = root.winfo_width()
-window_height = root.winfo_height()
-x = screen_width - window_width
-y = 0
-root.geometry(f"+{x}+{y}")
-name_field.focus_set()
-root.mainloop()
+if __name__ == "__main__":
+    setup_logging()
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    signal.signal(signal.SIGINT, lambda sig, frame: app.quit())
+    sys.exit(app.exec())
 

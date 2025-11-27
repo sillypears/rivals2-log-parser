@@ -199,6 +199,7 @@ Include/*
 include/*
 Lib/*
 lib/*
+lib64
 bin/*
 pyvenv.cfg
 *.sqlite

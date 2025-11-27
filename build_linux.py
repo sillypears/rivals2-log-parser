@@ -12,26 +12,10 @@ from pathlib import Path
 DATA_SEP = ";" if sys.platform == "win32" else ":"
 
 # ----------------------------------------------------------------------
-# 2. Helper: add a binary file (Tk/Tcl .so on Linux)
+# 2. Helper: add a binary file (none needed for PySide6)
 # ----------------------------------------------------------------------
 def extra_binaries():
     """Return list of (src, dest_dir) tuples for extra .so files."""
-    if sys.platform != "win32":
-        # Find libtk/libtcl that match the running interpreter
-        import tkinter, _tkinter
-        tk_so  = Path(tkinter.__file__).parent / "_tkinter" / "libtk8.6.so"
-        tcl_so = Path(tkinter.__file__).parent / "_tkinter" / "libtcl8.6.so"
-
-        # Fallback to system locations if the above fails
-        if not tk_so.exists():
-            tk_so  = Path("/usr/lib/libtk8.6.so")
-        if not tcl_so.exists():
-            tcl_so = Path("/usr/lib/libtcl8.6.so")
-
-        return [
-            (str(tk_so),  "lib"),
-            (str(tcl_so), "lib"),
-        ]
     return []
 
 
@@ -43,14 +27,11 @@ def run_build():
         sys.executable, "-m", "PyInstaller",
         "--onefile",
         "--windowed",
-        "--hidden-import=tkinter",
-        "--icon=icon.ico",
-        "--collect-all=tkinter",              # pulls in .tcl files too
         f"--add-data=config.ini{DATA_SEP}.",   # <-- cross-platform
-        f"--add-data=icon.png{DATA_SEP}.",
+        f"--add-data=icon_rgb.png{DATA_SEP}.",
     ]
 
-    # Add Tk/Tcl .so files on Linux
+    # Add extra binaries if any
     for src, dest in extra_binaries():
         cmd.extend(["--add-binary", f"{src}{DATA_SEP}{dest}"])
 

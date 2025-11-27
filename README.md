@@ -13,5 +13,8 @@
   1. Enter virtual env
   1. `python3 main.py`
 
-2. Build to EXE
-  1. `pyinstaller --onefile --windowed --add-data "config.ini;." main.py`
+2. Build to EXE (Windows)
+   1. `pyinstaller --onefile --windowed --icon=icon.ico --add-data "config.ini;." --add-data "icon.png;." main.py`
+
+3. Build to binary (Linux)
+   1. `python build_linux.py build`

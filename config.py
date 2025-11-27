@@ -24,7 +24,12 @@ class Config:
     # Logging settings
     @property
     def log_dir(self):
-        return self.config['logging']['dir']
+        if getattr(sys, 'frozen', False):
+            # Running as exe - logs next to executable
+            return os.path.join(os.path.dirname(sys.executable), self.config['logging']['dir'])
+        else:
+            # Running as script
+            return os.path.abspath(os.path.join(os.path.dirname(__file__), self.config['logging']['dir']))
     
     @property
     def log_file(self):
