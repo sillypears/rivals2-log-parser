@@ -4,9 +4,23 @@ import logging
 import signal
 from logging.handlers import RotatingFileHandler
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QPushButton, QComboBox, QLineEdit, QSpinBox, QCheckBox, QLabel, QTextEdit,
-    QCompleter, QMessageBox, QFrame, QMenu
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QPushButton,
+    QComboBox,
+    QLineEdit,
+    QSpinBox,
+    QCheckBox,
+    QLabel,
+    QTextEdit,
+    QCompleter,
+    QMessageBox,
+    QFrame,
+    QMenu,
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl
@@ -32,6 +46,7 @@ moves = {}
 top_moves = []
 STARTING_DEFAULT = config.opp_dir
 
+
 class ParserWorker(QThread):
     finished = Signal(list)
     error = Signal(str)
@@ -51,16 +66,17 @@ class ParserWorker(QThread):
             self.error.emit(str(e))
             traceback.print_exc()
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Rivals 2 Log Parser")
 
-
         # Set window icon
         icon_file = "icon.ico" if sys.platform.startswith("win") else "icon_rgb.png"
         try:
             from PyInstaller import sys as pyi_sys
+
             icon_path = os.path.join(pyi_sys._MEIPASS, icon_file)
         except ImportError:
             icon_path = os.path.join(os.path.dirname(__file__), icon_file)
@@ -79,12 +95,10 @@ class MainWindow(QMainWindow):
         self.adjustSize()
 
     def closeEvent(self, event):
-        if hasattr(self, 'worker') and self.worker.isRunning():
+        if hasattr(self, "worker") and self.worker.isRunning():
             self.worker.quit()
             self.worker.wait()
         event.accept()
-
-
 
     def setup_ui(self):
         central_widget = QWidget()
@@ -117,7 +131,16 @@ class MainWindow(QMainWindow):
 
         top_layout.addWidget(QLabel("Theme:"))
         self.theme_combo = QComboBox()
-        self.theme_combo.addItems(["Default", "Catppuccin Mocha", "Catppuccin Latte", "Dracula", "Nord", "Gruvbox Dark"])
+        self.theme_combo.addItems(
+            [
+                "Default",
+                "Catppuccin Mocha",
+                "Catppuccin Latte",
+                "Dracula",
+                "Nord",
+                "Gruvbox Dark",
+            ]
+        )
         self.theme_combo.currentTextChanged.connect(self.change_theme)
         top_layout.addWidget(self.theme_combo)
 
@@ -192,7 +215,7 @@ class MainWindow(QMainWindow):
 
         for x in range(3):
             row = x + 5
-            bottom_layout.addWidget(QLabel(f"Game {x+1}"), row, 0, Qt.AlignRight)
+            bottom_layout.addWidget(QLabel(f"Game {x + 1}"), row, 0, Qt.AlignRight)
 
             opp_combo = QComboBox()
             opp_combo.addItem("Loading...")
@@ -239,6 +262,7 @@ class MainWindow(QMainWindow):
         times_button.setFocusPolicy(Qt.NoFocus)
         copy_button.setFocusPolicy(Qt.NoFocus)
         clear_button.setFocusPolicy(Qt.NoFocus)
+        paste_button.setFocusPolicy(Qt.NoFocus)
         for combo in self.opp_combos:
             combo.setFocusPolicy(Qt.NoFocus)
         for combo in self.stage_combos:
@@ -248,24 +272,33 @@ class MainWindow(QMainWindow):
         for check in self.winner_checks:
             check.setFocusPolicy(Qt.NoFocus)
         for spin in self.duration_spins:
-            spin.setFocusPolicy(Qt.NoFocus)
+            spin.setFocusPolicy(Qt.ClickFocus)
 
         # Connect signals
         self.opp_combos[0].currentTextChanged.connect(self.sync_games)
 
     def setup_reset_menus(self):
-        widgets_to_reset = [
-            self.opp_elo_spin,
-            self.my_elo_spin,
-            self.change_elo_spin,
-            self.name_edit,
-            self.theme_combo,
-            self.debug_checkbox,
-        ] + self.opp_combos + self.stage_combos + self.move_combos + self.winner_checks + self.duration_spins
+        widgets_to_reset = (
+            [
+                self.opp_elo_spin,
+                self.my_elo_spin,
+                self.change_elo_spin,
+                self.name_edit,
+                self.theme_combo,
+                self.debug_checkbox,
+            ]
+            + self.opp_combos
+            + self.stage_combos
+            + self.move_combos
+            + self.winner_checks
+            + self.duration_spins
+        )
 
         for widget in widgets_to_reset:
             widget.setContextMenuPolicy(Qt.CustomContextMenu)
-            widget.customContextMenuRequested.connect(lambda pos, w=widget: self.show_reset_menu(w, pos))
+            widget.customContextMenuRequested.connect(
+                lambda pos, w=widget: self.show_reset_menu(w, pos)
+            )
 
     def show_reset_menu(self, widget, pos):
         self.reset_widget(widget)
@@ -449,7 +482,7 @@ class MainWindow(QMainWindow):
                 QCheckBox {
                     color: #ebdbb2;
                 }
-            """
+            """,
         }
         self.setStyleSheet(themes.get(theme_name, ""))
 
@@ -461,19 +494,28 @@ class MainWindow(QMainWindow):
             log_path = os.path.join(config.log_dir, config.log_file)
         elif file_name == "rivals":
             log_path = RIVALS_LOG_FOLDER
-            if sys.platform.startswith('darwin'):
+            if sys.platform.startswith("darwin"):
                 pass
             elif os.name == "nt":
-                log_path = os.path.join(log_path, "AppData", "Local", "Rivals2", "Saved", "Logs", "Rivals2.log")
-            elif os.name == 'posix':
+                log_path = os.path.join(
+                    log_path,
+                    "AppData",
+                    "Local",
+                    "Rivals2",
+                    "Saved",
+                    "Logs",
+                    "Rivals2.log",
+                )
+            elif os.name == "posix":
                 log_path = os.path.join(log_path)
             else:
                 return
         if log_path and os.path.exists(log_path):
             import subprocess
+
             env = os.environ.copy()
-            if 'LD_LIBRARY_PATH' in env:
-                del env['LD_LIBRARY_PATH']
+            if "LD_LIBRARY_PATH" in env:
+                del env["LD_LIBRARY_PATH"]
             if sys.platform == "win32":
                 os.startfile(log_path)
             elif sys.platform == "darwin":
@@ -483,23 +525,33 @@ class MainWindow(QMainWindow):
 
     def get_final_move_top_list(self):
         try:
-            res = requests.get(f"http://{config.be_host}:{config.be_port}/movelist/top", timeout=10)
+            res = requests.get(
+                f"http://{config.be_host}:{config.be_port}/movelist/top", timeout=10
+            )
             res.raise_for_status()
             return res.json()
         except requests.exceptions.Timeout:
             logger.error("Timeout fetching final move top list")
-            self.output_text.append("Error: Timeout fetching final move data from server.")
+            self.output_text.append(
+                "Error: Timeout fetching final move data from server."
+            )
         except requests.exceptions.ConnectionError:
             logger.error("Connection error fetching final move top list")
-            self.output_text.append("Error: Unable to connect to server for final move data.")
+            self.output_text.append(
+                "Error: Unable to connect to server for final move data."
+            )
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error fetching final move top list: {e}")
-            self.output_text.append("Error: Failed to fetch final move data from server.")
+            self.output_text.append(
+                "Error: Failed to fetch final move data from server."
+            )
         return {"status": "FAIL", "data": []}
 
     def get_current_elo(self):
         try:
-            res = requests.get(f"http://{config.be_host}:{config.be_port}/current_tier", timeout=10)
+            res = requests.get(
+                f"http://{config.be_host}:{config.be_port}/current_tier", timeout=10
+            )
             res.raise_for_status()
             return res.json()
         except requests.exceptions.Timeout:
@@ -507,11 +559,21 @@ class MainWindow(QMainWindow):
             self.output_text.append("Error: Timeout fetching current ELO from server.")
         except requests.exceptions.ConnectionError:
             logger.error("Connection error fetching current ELO")
-            self.output_text.append("Error: Unable to connect to server for current ELO.")
+            self.output_text.append(
+                "Error: Unable to connect to server for current ELO."
+            )
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error fetching current ELO: {e}")
             self.output_text.append("Error: Failed to fetch current ELO from server.")
-        return {"status": "FAIL", "data": {"current_elo": -2, "tier": "N/A", "tier_short": "N/A", "last_game_number": -2}}
+        return {
+            "status": "FAIL",
+            "data": {
+                "current_elo": -2,
+                "tier": "N/A",
+                "tier_short": "N/A",
+                "last_game_number": -2,
+            },
+        }
 
     def refresh_top_row(self):
         self.my_elo_spin.setValue(int(self.get_current_elo()["data"]["current_elo"]))
@@ -522,7 +584,7 @@ class MainWindow(QMainWindow):
         if not data:
             return
         self.output_text.append(str(data))
-        last = data[list(data.keys())[-1]]['durations']
+        last = data[list(data.keys())[-1]]["durations"]
         for i, d in enumerate(self.duration_spins):
             if i < len(last):
                 d.setValue(int(last[i]))
@@ -531,18 +593,26 @@ class MainWindow(QMainWindow):
 
     def get_opponent_names(self):
         try:
-            response = requests.get(f"http://{config.be_host}:{config.be_port}/opponent_names", timeout=10)
+            response = requests.get(
+                f"http://{config.be_host}:{config.be_port}/opponent_names", timeout=10
+            )
             response.raise_for_status()
-            return response.json()["data"]['names']
+            return response.json()["data"]["names"]
         except requests.exceptions.Timeout:
             logger.error("Timeout fetching opponent names")
-            self.output_text.append("Error: Timeout fetching opponent names from server.")
+            self.output_text.append(
+                "Error: Timeout fetching opponent names from server."
+            )
         except requests.exceptions.ConnectionError:
             logger.error("Connection error fetching opponent names")
-            self.output_text.append("Error: Unable to connect to server for opponent names.")
+            self.output_text.append(
+                "Error: Unable to connect to server for opponent names."
+            )
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error fetching opponent names: {e}")
-            self.output_text.append("Error: Failed to fetch opponent names from server.")
+            self.output_text.append(
+                "Error: Failed to fetch opponent names from server."
+            )
         return []
 
     def populate_dropdowns(self):
@@ -555,31 +625,41 @@ class MainWindow(QMainWindow):
         moves_json = {"data": []}
 
         try:
-            response = requests.get(f"http://{config.be_host}:{config.be_port}/characters", timeout=10)
+            response = requests.get(
+                f"http://{config.be_host}:{config.be_port}/characters", timeout=10
+            )
             response.raise_for_status()
             characters_json = response.json()
-            for char in characters_json['data']:
+            for char in characters_json["data"]:
                 characters[char["display_name"]] = char["id"]
                 if char["id"] == -1:
                     characters["sepior1"] = -1
             character_names = list(characters.keys())
         except requests.exceptions.Timeout:
-            self.output_text.append("Error: Timeout fetching character data from server.")
+            self.output_text.append(
+                "Error: Timeout fetching character data from server."
+            )
             logger.error("Timeout fetching characters")
         except requests.exceptions.ConnectionError:
-            self.output_text.append("Error: Unable to connect to server for character data.")
+            self.output_text.append(
+                "Error: Unable to connect to server for character data."
+            )
             logger.error("Connection error fetching characters")
         except requests.exceptions.RequestException as e:
-            self.output_text.append("Error: Failed to fetch character data from server.")
+            self.output_text.append(
+                "Error: Failed to fetch character data from server."
+            )
             logger.error(f"Request error fetching characters: {e}")
 
         try:
-            response = requests.get(f"http://{config.be_host}:{config.be_port}/stages", timeout=10)
+            response = requests.get(
+                f"http://{config.be_host}:{config.be_port}/stages", timeout=10
+            )
             response.raise_for_status()
             stage_json = response.json()
             counter = -1
-            for stage in stage_json['data']:
-                if stage['stage_type'] != "Doubles":
+            for stage in stage_json["data"]:
+                if stage["stage_type"] != "Doubles":
                     if counter == -1 and stage["counter_pick"] == -1:
                         stages1[stage["display_name"]] = stage["id"]
                     if counter == -1 and stage["counter_pick"] == 0:
@@ -597,18 +677,24 @@ class MainWindow(QMainWindow):
             self.output_text.append("Error: Timeout fetching stage data from server.")
             logger.error("Timeout fetching stages")
         except requests.exceptions.ConnectionError:
-            self.output_text.append("Error: Unable to connect to server for stage data.")
+            self.output_text.append(
+                "Error: Unable to connect to server for stage data."
+            )
             logger.error("Connection error fetching stages")
         except requests.exceptions.RequestException as e:
             self.output_text.append("Error: Failed to fetch stage data from server.")
             logger.error(f"Request error fetching stages: {e}")
 
         try:
-            response = requests.get(f"http://{config.be_host}:{config.be_port}/movelist", timeout=10)
+            response = requests.get(
+                f"http://{config.be_host}:{config.be_port}/movelist", timeout=10
+            )
             response.raise_for_status()
             moves_json = response.json()
-            sorted_moves = sorted(moves_json['data'], key=lambda x: x['list_order'])
-            top_moves_list = [x["final_move_name"] for x in self.get_final_move_top_list()['data']]
+            sorted_moves = sorted(moves_json["data"], key=lambda x: x["list_order"])
+            top_moves_list = [
+                x["final_move_name"] for x in self.get_final_move_top_list()["data"]
+            ]
             for move in sorted_moves:
                 display_name = move["display_name"]
                 if display_name in top_moves_list:
@@ -627,7 +713,9 @@ class MainWindow(QMainWindow):
             self.output_text.append("Error: Failed to fetch move data from server.")
             logger.error(f"Request error fetching moves: {e}")
 
-        self.output_text.append(f"Fetched {len([x for x in characters_json['data'] if x['list_order'] > 0])} characters, {len([x for x in stage_json['data'] if x['list_order'] > 0])} stages and {len([x for x in moves_json['data'] if x['list_order'] > 0])} moves.")
+        self.output_text.append(
+            f"Fetched {len([x for x in characters_json['data'] if x['list_order'] > 0])} characters, {len([x for x in stage_json['data'] if x['list_order'] > 0])} stages and {len([x for x in moves_json['data'] if x['list_order'] > 0])} moves."
+        )
 
         for x in range(3):
             self.opp_combos[x].clear()
@@ -651,12 +739,14 @@ class MainWindow(QMainWindow):
                 combo.removeItem(idx + 1)
 
     def are_required_dropdowns_filled(self):
-        return all([
-            self.opp_combos[0].currentText().strip() != "N/A",
-            self.stage_combos[0].currentText().strip() != "N/A",
-            self.opp_combos[1].currentText().strip() != "N/A",
-            self.stage_combos[1].currentText().strip() != "N/A",
-        ])
+        return all(
+            [
+                self.opp_combos[0].currentText().strip() != "N/A",
+                self.stage_combos[0].currentText().strip() != "N/A",
+                self.opp_combos[1].currentText().strip() != "N/A",
+                self.stage_combos[1].currentText().strip() != "N/A",
+            ]
+        )
 
     def clear_matchup_fields(self):
         for combo in self.opp_combos + self.stage_combos + self.move_combos:
@@ -671,30 +761,54 @@ class MainWindow(QMainWindow):
     def generate_json(self):
         elo_values = self.get_current_elo()
         jsond = {}
-        jsond["match_date"] = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
+        jsond["match_date"] = (
+            datetime.now(timezone.utc)
+            .replace(tzinfo=None)
+            .isoformat(timespec="seconds")
+        )
         jsond["elo_rank_new"] = self.my_elo_spin.value()
         jsond["elo_change"] = self.change_elo_spin.value()
         jsond["elo_rank_old"] = jsond["elo_rank_new"] - jsond["elo_change"]
         jsond["match_win"] = 1 if jsond["elo_change"] >= 0 else 0
         jsond["match_forfeit"] = -1
         jsond["ranked_game_number"] = int(elo_values["data"]["last_game_number"]) + 1
-        jsond["total_wins"] = int(elo_values["data"]["total_wins"]) + 1 if jsond["match_win"] else int(elo_values["data"]["total_wins"])
-        jsond["win_streak_value"] = int(elo_values["data"]["win_streak_value"]) + 1 if jsond["match_win"] else int(elo_values["data"]["win_streak_value"])
+        jsond["total_wins"] = (
+            int(elo_values["data"]["total_wins"]) + 1
+            if jsond["match_win"]
+            else int(elo_values["data"]["total_wins"])
+        )
+        jsond["win_streak_value"] = (
+            int(elo_values["data"]["win_streak_value"]) + 1
+            if jsond["match_win"]
+            else int(elo_values["data"]["win_streak_value"])
+        )
         jsond["opponent_elo"] = self.opp_elo_spin.value()
         jsond["opponent_name"] = self.name_edit.text() or ""
         for x in range(3):
-            jsond[f"game_{x+1}_char_pick"] = 2
-            jsond[f"game_{x+1}_opponent_pick"] = int(characters.get(self.opp_combos[x].currentText(), -1))
-            jsond[f"game_{x+1}_stage"] = int(stages.get(self.stage_combos[x].currentText(), -1))
-            jsond[f"game_{x+1}_final_move_id"] = int(moves.get(self.move_combos[x].currentText().replace(" *", ""), -1))
-            jsond[f"game_{x+1}_winner"] = 2 if self.winner_checks[x].isChecked() else (1 if self.opp_combos[x].currentText() != "N/A" else -1)
-            jsond[f"game_{x+1}_duration"] = self.duration_spins[x].value()
+            jsond[f"game_{x + 1}_char_pick"] = 2
+            jsond[f"game_{x + 1}_opponent_pick"] = int(
+                characters.get(self.opp_combos[x].currentText(), -1)
+            )
+            jsond[f"game_{x + 1}_stage"] = int(
+                stages.get(self.stage_combos[x].currentText(), -1)
+            )
+            jsond[f"game_{x + 1}_final_move_id"] = int(
+                moves.get(self.move_combos[x].currentText().replace(" *", ""), -1)
+            )
+            jsond[f"game_{x + 1}_winner"] = (
+                2
+                if self.winner_checks[x].isChecked()
+                else (1 if self.opp_combos[x].currentText() != "N/A" else -1)
+            )
+            jsond[f"game_{x + 1}_duration"] = self.duration_spins[x].value()
+
         def get_final_move_id(data):
             for i in [3, 2, 1]:
                 fmid = data[f"game_{i}_final_move_id"]
                 if fmid != -1:
                     return fmid
             return -2
+
         jsond["final_move_id"] = get_final_move_id(jsond)
         jsond["notes"] = "Added via JSON lol"
         logger.debug(json.dumps(jsond))
@@ -710,18 +824,22 @@ class MainWindow(QMainWindow):
             self.opp_elo_spin.setValue(data.get("opponent_elo", 1000))
             self.name_edit.setText(data.get("opponent_name", ""))
             for x in range(3):
-                opp_id = data.get(f"game_{x+1}_opponent_pick", -1)
-                opp_name = next((k for k, v in characters.items() if v == opp_id), "N/A")
+                opp_id = data.get(f"game_{x + 1}_opponent_pick", -1)
+                opp_name = next(
+                    (k for k, v in characters.items() if v == opp_id), "N/A"
+                )
                 self.opp_combos[x].setCurrentText(opp_name)
-                stage_id = data.get(f"game_{x+1}_stage", -1)
-                stage_name = next((k for k, v in stages.items() if v == stage_id), "N/A")
+                stage_id = data.get(f"game_{x + 1}_stage", -1)
+                stage_name = next(
+                    (k for k, v in stages.items() if v == stage_id), "N/A"
+                )
                 self.stage_combos[x].setCurrentText(stage_name)
-                move_id = data.get(f"game_{x+1}_final_move_id", -1)
+                move_id = data.get(f"game_{x + 1}_final_move_id", -1)
                 move_name = next((k for k, v in moves.items() if v == move_id), "N/A")
                 self.move_combos[x].setCurrentText(move_name)
-                winner = data.get(f"game_{x+1}_winner", -1)
+                winner = data.get(f"game_{x + 1}_winner", -1)
                 self.winner_checks[x].setChecked(winner == 2)
-                duration = data.get(f"game_{x+1}_duration", -1)
+                duration = data.get(f"game_{x + 1}_duration", -1)
                 self.duration_spins[x].setValue(duration)
         except json.JSONDecodeError:
             QMessageBox.warning(self, "Error", "Invalid JSON in clipboard.")
@@ -732,26 +850,44 @@ class MainWindow(QMainWindow):
         if self.are_required_dropdowns_filled():
             extra_data = {
                 "game_1_char_pick": int(characters.get("Loxodont", -1)),
-                "game_1_opponent_pick": int(characters.get(self.opp_combos[0].currentText(), -1)),
+                "game_1_opponent_pick": int(
+                    characters.get(self.opp_combos[0].currentText(), -1)
+                ),
                 "game_1_stage": int(stages.get(self.stage_combos[0].currentText(), -1)),
-                "game_1_winner": 2 if self.winner_checks[0].isChecked() else (1 if self.opp_combos[0].currentText() != "N/A" else -1),
-                "game_1_final_move_id": int(moves.get(self.move_combos[0].currentText().replace(" *", ""), -1)),
+                "game_1_winner": 2
+                if self.winner_checks[0].isChecked()
+                else (1 if self.opp_combos[0].currentText() != "N/A" else -1),
+                "game_1_final_move_id": int(
+                    moves.get(self.move_combos[0].currentText().replace(" *", ""), -1)
+                ),
                 "game_1_duration": self.duration_spins[0].value(),
                 "game_2_char_pick": int(characters.get("Loxodont", -1)),
-                "game_2_opponent_pick": int(characters.get(self.opp_combos[1].currentText(), -1)),
+                "game_2_opponent_pick": int(
+                    characters.get(self.opp_combos[1].currentText(), -1)
+                ),
                 "game_2_stage": int(stages.get(self.stage_combos[1].currentText(), -1)),
-                "game_2_winner": 2 if self.winner_checks[1].isChecked() else (1 if self.opp_combos[1].currentText() != "N/A" else -1),
-                "game_2_final_move_id": int(moves.get(self.move_combos[1].currentText().replace(" *", ""), -1)),
+                "game_2_winner": 2
+                if self.winner_checks[1].isChecked()
+                else (1 if self.opp_combos[1].currentText() != "N/A" else -1),
+                "game_2_final_move_id": int(
+                    moves.get(self.move_combos[1].currentText().replace(" *", ""), -1)
+                ),
                 "game_2_duration": self.duration_spins[1].value(),
                 "game_3_char_pick": int(characters.get("Loxodont", -1)),
-                "game_3_opponent_pick": int(characters.get(self.opp_combos[2].currentText(), -1)),
+                "game_3_opponent_pick": int(
+                    characters.get(self.opp_combos[2].currentText(), -1)
+                ),
                 "game_3_stage": int(stages.get(self.stage_combos[2].currentText(), -1)),
-                "game_3_winner": 2 if self.winner_checks[2].isChecked() else (1 if self.opp_combos[2].currentText() != "N/A" else -1),
-                "game_3_final_move_id": int(moves.get(self.move_combos[2].currentText().replace(" *", ""), -1)),
+                "game_3_winner": 2
+                if self.winner_checks[2].isChecked()
+                else (1 if self.opp_combos[2].currentText() != "N/A" else -1),
+                "game_3_final_move_id": int(
+                    moves.get(self.move_combos[2].currentText().replace(" *", ""), -1)
+                ),
                 "game_3_duration": self.duration_spins[2].value(),
                 "opponent_elo": self.opp_elo_spin.value(),
                 "opponent_name": self.name_edit.text() or "",
-                "final_move_id": -1
+                "final_move_id": -1,
             }
         self.worker = ParserWorker(self.debug_checkbox.isChecked(), extra_data)
         self.worker.finished.connect(self.on_parser_finished)
@@ -762,7 +898,9 @@ class MainWindow(QMainWindow):
         if result == -1:
             self.output_text.append("No matches found or no new matches to add.")
         else:
-            self.output_text.append(f"Log parsed. Added {len(result)} match{'es' if len(result) != 1 else ''}: {','.join(f'{str(x.elo_rank_new)}({str(x.elo_change)})' for x in result) if result else ''}")
+            self.output_text.append(
+                f"Log parsed. Added {len(result)} match{'es' if len(result) != 1 else ''}: {','.join(f'{str(x.elo_rank_new)}({str(x.elo_change)})' for x in result) if result else ''}"
+            )
         self.run_button.setEnabled(True)
         self.refresh_top_row()
         self.name_edit.setCompleter(QCompleter(self.get_opponent_names()))
@@ -774,6 +912,7 @@ class MainWindow(QMainWindow):
     def sync_games(self):
         self.opp_combos[1].setCurrentText(self.opp_combos[0].currentText())
 
+
 def setup_logging():
     os.makedirs(config.log_dir, exist_ok=True)
 
@@ -782,14 +921,14 @@ def setup_logging():
     logger.info(logger.level)
 
     formatter = logging.Formatter(
-        '%(asctime)s - %(module)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        "%(asctime)s - %(module)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
     file_handler = RotatingFileHandler(
         os.path.join(config.log_dir, config.log_file),
         maxBytes=int(config.max_log_size),
-        backupCount=int(config.backup_count)
+        backupCount=int(config.backup_count),
     )
 
     file_handler.setFormatter(formatter)
@@ -803,6 +942,7 @@ def setup_logging():
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
 
+
 if __name__ == "__main__":
     setup_logging()
     app = QApplication(sys.argv)
@@ -810,3 +950,4 @@ if __name__ == "__main__":
     window.show()
     signal.signal(signal.SIGINT, lambda sig, frame: app.quit())
     sys.exit(app.exec())
+
