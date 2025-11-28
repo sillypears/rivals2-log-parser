@@ -10,7 +10,7 @@ from pathlib import Path
 # 1. Detect OS → correct separator for --add-data
 # ----------------------------------------------------------------------
 DATA_SEP = ";" if sys.platform == "win32" else ":"
-
+VERSION = "0.0.0"
 # ----------------------------------------------------------------------
 # 2. Helper: add a binary file (none needed for PySide6)
 # ----------------------------------------------------------------------
@@ -22,12 +22,13 @@ def extra_binaries():
 # ----------------------------------------------------------------------
 # 3. Build command
 # ----------------------------------------------------------------------
-def run_build():
+def run_build(args):
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--onefile",
         "--windowed",
-        f"--add-data=config.ini{DATA_SEP}.",   # <-- cross-platform
+        f"--add-data=version{DATA_SEP}.",
+        f"--add-data=config.ini{DATA_SEP}.",
         f"--add-data=icon_rgb.png{DATA_SEP}.",
     ]
 
@@ -37,6 +38,23 @@ def run_build():
 
     cmd.append("main.py")
 
+    major_version = 0
+    minor_version = 0
+    version = "0.0"
+
+    with open('version', 'r') as f:
+        version = f.read().split(".")
+        major_version = version[0]
+        minor_version = int(version[1]) + 1
+
+    if int(args.minor) > 0: minor_version = int(args.minor)
+    if int(args.major) > 0: 
+        major_version = int(args.major)
+        minor_version = 0
+
+    with open('version', 'w') as f:
+        f.write(f"{major_version}.{minor_version}")
+    
     print("Running:", " ".join(cmd))
     result = subprocess.run(cmd)
     if result.returncode != 0:
@@ -68,9 +86,26 @@ if __name__ == "__main__":
         default="build",
         help="build = create exe, clean = remove build artefacts",
     )
+    parser.add_argument(
+        "-M",
+        "--major",
+        type=int,
+        default=-1,
+        dest="major",
+        help="Major version to increase to"
+    )
+    parser.add_argument(
+        "-m",
+        "--minor",
+        type=int,
+        default=-1,
+        dest="minor",
+        help="Minor version to increase to"
+    )
+
     args = parser.parse_args()
 
     if args.command == "build":
-        run_build()
+        run_build(args)
     else:
         clean()

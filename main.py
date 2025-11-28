@@ -1,3 +1,4 @@
+from pathlib import Path
 import sys
 import os
 import logging
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QFrame,
     QMenu,
+    QStatusBar,
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl
@@ -46,6 +48,22 @@ moves = {}
 top_moves = []
 STARTING_DEFAULT = config.opp_dir
 
+
+
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    if getattr(sys, "frozen", False):
+        base_path = Path(sys._MEIPASS)
+    else:
+        base_path = Path(__file__).parent
+    return base_path / relative_path
+
+minor_version = 0
+major_version = 0
+version_path = resource_path("version")
+major_version, minor_version = version_path.read_text().strip().split('.')
+
+print(f"{major_version}.{minor_version}")
 
 class ParserWorker(QThread):
     finished = Signal(list)
@@ -150,7 +168,7 @@ class MainWindow(QMainWindow):
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
         self.output_text.setMinimumHeight(100)
-        main_layout.addWidget(self.output_text, 1)  # stretch factor 1 to expand
+        main_layout.addWidget(self.output_text, 1) 
 
         # Bottom section
         bottom_layout = QGridLayout()
@@ -276,6 +294,14 @@ class MainWindow(QMainWindow):
 
         # Connect signals
         self.opp_combos[0].currentTextChanged.connect(self.sync_games)
+        
+        app_version = f"Version: {major_version}.{minor_version}"
+        self.statusBar = QStatusBar()
+        self.setStatusBar(self.statusBar)
+        version_label = QLabel(app_version)
+        version_label.setStyleSheet("QLabel { color: gray; padding: 0 8px; }")
+        self.statusBar.addPermanentWidget(version_label)
+
 
     def setup_reset_menus(self):
         widgets_to_reset = (
