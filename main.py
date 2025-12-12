@@ -49,7 +49,6 @@ top_moves = []
 STARTING_DEFAULT = config.opp_dir
 
 
-
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
     if getattr(sys, "frozen", False):
@@ -58,12 +57,14 @@ def resource_path(relative_path):
         base_path = Path(__file__).parent
     return base_path / relative_path
 
+
 minor_version = 0
 major_version = 0
 version_path = resource_path("version")
-major_version, minor_version = version_path.read_text().strip().split('.')
+major_version, minor_version = version_path.read_text().strip().split(".")
 
 print(f"{major_version}.{minor_version}")
+
 
 class ParserWorker(QThread):
     finished = Signal(list)
@@ -168,7 +169,7 @@ class MainWindow(QMainWindow):
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
         self.output_text.setMinimumHeight(100)
-        main_layout.addWidget(self.output_text, 1) 
+        main_layout.addWidget(self.output_text, 1)
 
         # Bottom section
         bottom_layout = QGridLayout()
@@ -294,14 +295,13 @@ class MainWindow(QMainWindow):
 
         # Connect signals
         self.opp_combos[0].currentTextChanged.connect(self.sync_games)
-        
+
         app_version = f"Version: {major_version}.{minor_version}"
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
         version_label = QLabel(app_version)
         version_label.setStyleSheet("QLabel { color: gray; padding: 0 8px; }")
         self.statusBar.addPermanentWidget(version_label)
-
 
     def setup_reset_menus(self):
         widgets_to_reset = (
@@ -765,14 +765,15 @@ class MainWindow(QMainWindow):
                 combo.removeItem(idx + 1)
 
     def are_required_dropdowns_filled(self):
-        return all(
-            [
-                self.opp_combos[0].currentText().strip() != "N/A",
-                self.stage_combos[0].currentText().strip() != "N/A",
-                self.opp_combos[1].currentText().strip() != "N/A",
-                self.stage_combos[1].currentText().strip() != "N/A",
-            ]
-        )
+        for game in range(3):
+            opp = self.opp_combos[game].currentText().strip()
+            stage = self.stage_combos[game].currentText().strip()
+            move = self.move_combos[game].currentText().strip()
+            dur = self.duration_spins[game].value()
+            if opp != "N/A" or stage != "N/A" or move != "N/A" or dur != -1:
+                if opp == "N/A" or stage == "N/A" or move == "N/A" or dur <= 0:
+                    return False
+        return True
 
     def clear_matchup_fields(self):
         for combo in self.opp_combos + self.stage_combos + self.move_combos:
@@ -872,49 +873,56 @@ class MainWindow(QMainWindow):
 
     def run_parser(self):
         self.run_button.setEnabled(False)
-        extra_data = {}
-        if self.are_required_dropdowns_filled():
-            extra_data = {
-                "game_1_char_pick": int(characters.get("Loxodont", -1)),
-                "game_1_opponent_pick": int(
-                    characters.get(self.opp_combos[0].currentText(), -1)
-                ),
-                "game_1_stage": int(stages.get(self.stage_combos[0].currentText(), -1)),
-                "game_1_winner": 2
-                if self.winner_checks[0].isChecked()
-                else (1 if self.opp_combos[0].currentText() != "N/A" else -1),
-                "game_1_final_move_id": int(
-                    moves.get(self.move_combos[0].currentText().replace(" *", ""), -1)
-                ),
-                "game_1_duration": self.duration_spins[0].value(),
-                "game_2_char_pick": int(characters.get("Loxodont", -1)),
-                "game_2_opponent_pick": int(
-                    characters.get(self.opp_combos[1].currentText(), -1)
-                ),
-                "game_2_stage": int(stages.get(self.stage_combos[1].currentText(), -1)),
-                "game_2_winner": 2
-                if self.winner_checks[1].isChecked()
-                else (1 if self.opp_combos[1].currentText() != "N/A" else -1),
-                "game_2_final_move_id": int(
-                    moves.get(self.move_combos[1].currentText().replace(" *", ""), -1)
-                ),
-                "game_2_duration": self.duration_spins[1].value(),
-                "game_3_char_pick": int(characters.get("Loxodont", -1)),
-                "game_3_opponent_pick": int(
-                    characters.get(self.opp_combos[2].currentText(), -1)
-                ),
-                "game_3_stage": int(stages.get(self.stage_combos[2].currentText(), -1)),
-                "game_3_winner": 2
-                if self.winner_checks[2].isChecked()
-                else (1 if self.opp_combos[2].currentText() != "N/A" else -1),
-                "game_3_final_move_id": int(
-                    moves.get(self.move_combos[2].currentText().replace(" *", ""), -1)
-                ),
-                "game_3_duration": self.duration_spins[2].value(),
-                "opponent_elo": self.opp_elo_spin.value(),
-                "opponent_name": self.name_edit.text() or "",
-                "final_move_id": -1,
-            }
+        if not self.are_required_dropdowns_filled():
+            QMessageBox.warning(
+                self,
+                "Error",
+                "Please fill in required fields for games not marked as won.",
+            )
+            self.run_button.setEnabled(True)
+            return
+        extra_data = {
+            "game_1_char_pick": int(characters.get("Loxodont", -1)),
+            "game_1_opponent_pick": int(
+                characters.get(self.opp_combos[0].currentText(), -1)
+            ),
+            "game_1_stage": int(stages.get(self.stage_combos[0].currentText(), -1)),
+            "game_1_winner": 2
+            if self.winner_checks[0].isChecked()
+            else (1 if self.opp_combos[0].currentText() != "N/A" else -1),
+            "game_1_final_move_id": int(
+                moves.get(self.move_combos[0].currentText().replace(" *", ""), -1)
+            ),
+            "game_1_duration": self.duration_spins[0].value(),
+            "game_2_char_pick": int(characters.get("Loxodont", -1)),
+            "game_2_opponent_pick": int(
+                characters.get(self.opp_combos[1].currentText(), -1)
+            ),
+            "game_2_stage": int(stages.get(self.stage_combos[1].currentText(), -1)),
+            "game_2_winner": 2
+            if self.winner_checks[1].isChecked()
+            else (1 if self.opp_combos[1].currentText() != "N/A" else -1),
+            "game_2_final_move_id": int(
+                moves.get(self.move_combos[1].currentText().replace(" *", ""), -1)
+            ),
+            "game_2_duration": self.duration_spins[1].value(),
+            "game_3_char_pick": int(characters.get("Loxodont", -1)),
+            "game_3_opponent_pick": int(
+                characters.get(self.opp_combos[2].currentText(), -1)
+            ),
+            "game_3_stage": int(stages.get(self.stage_combos[2].currentText(), -1)),
+            "game_3_winner": 2
+            if self.winner_checks[2].isChecked()
+            else (1 if self.opp_combos[2].currentText() != "N/A" else -1),
+            "game_3_final_move_id": int(
+                moves.get(self.move_combos[2].currentText().replace(" *", ""), -1)
+            ),
+            "game_3_duration": self.duration_spins[2].value(),
+            "opponent_elo": self.opp_elo_spin.value(),
+            "opponent_name": self.name_edit.text() or "",
+            "final_move_id": -1,
+        }
+        self.extra_data = extra_data
         self.worker = ParserWorker(self.debug_checkbox.isChecked(), extra_data)
         self.worker.finished.connect(self.on_parser_finished)
         self.worker.error.connect(self.on_parser_error)
@@ -927,6 +935,11 @@ class MainWindow(QMainWindow):
             self.output_text.append(
                 f"Log parsed. Added {len(result)} match{'es' if len(result) != 1 else ''}: {','.join(f'{str(x.elo_rank_new)}({str(x.elo_change)})' for x in result) if result else ''}"
             )
+        # Log GUI selections and ranked game numbers for recovery
+        logger = logging.getLogger()
+        logger.info("Parsed match GUI data: %s", self.extra_data)
+        for match in result:
+            logger.info("Ranked game number: %d", match.ranked_game_number)
         self.run_button.setEnabled(True)
         self.refresh_top_row()
         self.name_edit.setCompleter(QCompleter(self.get_opponent_names()))
@@ -976,4 +989,3 @@ if __name__ == "__main__":
     window.show()
     signal.signal(signal.SIGINT, lambda sig, frame: app.quit())
     sys.exit(app.exec())
-

@@ -241,6 +241,8 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
             if not dev:
                 logger.debug(f"Posting match: {new_match.ranked_game_number} to BE")
                 res = post_match(new_match)
+                if res.status_code == 200:
+                    logger.info(res.content['data'])
         except Exception as e:
             logger.error(f"why did posting fail?? {e}|{res}")
         try:
