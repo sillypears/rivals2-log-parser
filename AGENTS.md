@@ -26,6 +26,7 @@ This file contains notes, commands, and configurations for the opencode agent to
 - **JSON Import/Export**: Added "Paste JSON" button for importing match data; removed unnecessary "final_move_id" from JSON output.
 - **GUI Layout Update**: Rearranged layout to be more vertical by moving buttons above ELO inputs and positioning the name input above game sections spanning multiple columns.
 - **Durations Button Fix**: Fixed index error when filling match durations for matches with fewer than 3 games.
+- **Final Move Fixes**: Fixed final move ID lookup for moves containing "*" in their names; updated validation to not require final move selection when winner checkbox is checked (opponent won).
 
 ## Key Files
 - `main.py`: Main GUI application (PySide6).
