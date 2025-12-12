@@ -820,7 +820,7 @@ class MainWindow(QMainWindow):
                 stages.get(self.stage_combos[x].currentText(), -1)
             )
             jsond[f"game_{x + 1}_final_move_id"] = int(
-                moves.get(self.move_combos[x].currentText().replace(" *", ""), -1)
+                moves.get(self.move_combos[x].currentText(), -1)
             )
             jsond[f"game_{x + 1}_winner"] = (
                 2
@@ -891,7 +891,7 @@ class MainWindow(QMainWindow):
             if self.winner_checks[0].isChecked()
             else (1 if self.opp_combos[0].currentText() != "N/A" else -1),
             "game_1_final_move_id": int(
-                moves.get(self.move_combos[0].currentText().replace(" *", ""), -1)
+                moves.get(self.move_combos[0].currentText(), -1)
             ),
             "game_1_duration": self.duration_spins[0].value(),
             "game_2_char_pick": int(characters.get("Loxodont", -1)),
@@ -903,7 +903,7 @@ class MainWindow(QMainWindow):
             if self.winner_checks[1].isChecked()
             else (1 if self.opp_combos[1].currentText() != "N/A" else -1),
             "game_2_final_move_id": int(
-                moves.get(self.move_combos[1].currentText().replace(" *", ""), -1)
+                moves.get(self.move_combos[1].currentText(), -1)
             ),
             "game_2_duration": self.duration_spins[1].value(),
             "game_3_char_pick": int(characters.get("Loxodont", -1)),
@@ -915,7 +915,7 @@ class MainWindow(QMainWindow):
             if self.winner_checks[2].isChecked()
             else (1 if self.opp_combos[2].currentText() != "N/A" else -1),
             "game_3_final_move_id": int(
-                moves.get(self.move_combos[2].currentText().replace(" *", ""), -1)
+                moves.get(self.move_combos[2].currentText(), -1)
             ),
             "game_3_duration": self.duration_spins[2].value(),
             "opponent_elo": self.opp_elo_spin.value(),
