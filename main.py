@@ -770,8 +770,21 @@ class MainWindow(QMainWindow):
             stage = self.stage_combos[game].currentText().strip()
             move = self.move_combos[game].currentText().strip()
             dur = self.duration_spins[game].value()
-            if opp != "N/A" or stage != "N/A" or move != "N/A" or dur != -1:
-                if opp == "N/A" or stage == "N/A" or move == "N/A" or dur <= 0:
+            winner_checked = self.winner_checks[game].isChecked()
+            # If winner is checked, final move is not required
+            move_required = not winner_checked
+            if (
+                opp != "N/A"
+                or stage != "N/A"
+                or (move != "N/A" and move_required)
+                or dur != -1
+            ):
+                if (
+                    opp == "N/A"
+                    or stage == "N/A"
+                    or (move == "N/A" and move_required)
+                    or dur <= 0
+                ):
                     return False
         return True
 
