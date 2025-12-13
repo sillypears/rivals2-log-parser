@@ -14,6 +14,7 @@ from pprint import pprint
 import json
 from pydantic import TypeAdapter
 from config import Config
+from utils.log import setup_logging
 from match_duration import roll_up_durations
 
 import sys
@@ -21,51 +22,21 @@ import sys
 if sys.platform == "win32":
     APPDATAFOLDER = os.path.dirname(os.getenv("APPDATA"))
 elif sys.platform.startswith("linux"):
-    APPDATAFOLDER = f"{os.path.expanduser("~")}/.local/share/Steam/steamapps/compatdata/2217000/pfx/drive_c/users/steamuser/AppData/"
-    print(APPDATAFOLDER)
+    APPDATAFOLDER = f"{os.path.expanduser('~')}/.local/share/Steam/steamapps/compatdata/2217000/pfx/drive_c/users/steamuser/AppData/"
 elif sys.platform == "darwin":
-    print("Dumbass on macOS")
-    sys.exit()
+    sys.exit("Dumbass on macOS")
 else:
-    print("Unknown OS")
+    sys.exit("Unknown OS")
 
 RIVALS_FOLDER = os.path.join(APPDATAFOLDER, "Local", "Rivals2", "Saved")
 RIVALS_LOG_FOLDER = os.path.join(RIVALS_FOLDER, "Logs")
 
 config = Config()
-logger = logging.getLogger()
-
-def setup_logging():
-    os.makedirs(config.log_dir, exist_ok=True)
-    
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG if int(config.debug) else logging.INFO) 
-    formatter = logging.Formatter(
-        '%(asctime)s - %(module)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-
-    file_handler = RotatingFileHandler(
-        os.path.join(config.log_dir, config.log_file), 
-        maxBytes=int(config.max_log_size), 
-        backupCount=int(config.backup_count)
-    )
-
-    file_handler.setFormatter(formatter)
-    file_handler.setLevel(logging.DEBUG)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    console_handler.setLevel(logging.INFO)
-
-    if not logger.handlers:
-        logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
 
 def search_file(file: TextIO, string: str):
     lines = []
     file.seek(0)
-    for line_no, line in enumerate(file,1):
+    for line_no, line in enumerate(file, 1):
         if string in line:
             lines.append(line.strip())
     if lines:
@@ -73,13 +44,18 @@ def search_file(file: TextIO, string: str):
     else:
         return False
 
+
 def see_if_game_exists(match_id, match_date):
     try:
-        res = requests.get(f"http://{config.be_host}:{config.be_port}/match-exists?match_number={match_id}", timeout=10)
+        res = requests.get(
+            f"http://{config.be_host}:{config.be_port}/match-exists?match_number={match_id}",
+            timeout=10,
+        )
         return res.status_code == 200
     except requests.exceptions.RequestException as e:
         logger.error(f"Error checking match existence for {match_id}: {e}")
         return False  # Assume not exists on error
+
 
 def find_rank_in_logs(files: list[str]):
     ranks = []
@@ -89,19 +65,22 @@ def find_rank_in_logs(files: list[str]):
     #     if x:
     #         data.extend(x)
     for file in files:
-        with open(file, 'r') as f:
-            x = search_file(f, "URivalsRankUpdateMessage::OnReceivedFromServer LocalPlayerIndex")
+        with open(file, "r") as f:
+            x = search_file(
+                f, "URivalsRankUpdateMessage::OnReceivedFromServer LocalPlayerIndex"
+            )
             if x:
                 data.extend(x)
     for line in data:
         ranks.append(extract_numbers(line))
     return ranks
 
+
 def extract_numbers(line: str, file: str = None) -> Match:
     result = {}
-    numbers = re.findall(r'-?\d+', line)
+    numbers = re.findall(r"-?\d+", line)
     ranks = numbers[-6:]
-    match = re.search(r'\[(\d{4}\.\d{2}\.\d{2})-(\d{2}\.\d{2}\.\d{2})', line)
+    match = re.search(r"\[(\d{4}\.\d{2}\.\d{2})-(\d{2}\.\d{2}\.\d{2})", line)
     try:
         if match:
             date_str = f"{match.group(1)} {match.group(2)}"
@@ -113,30 +92,35 @@ def extract_numbers(line: str, file: str = None) -> Match:
     win_loss = 0 if int(ranks[2]) < 0 else 1
     try:
         result = Match(
-            match_date = dt,
-            elo_rank_new = int(ranks[0]),
-            elo_rank_old = int(ranks[1]),
-            elo_change = int(ranks[2]),
-            ranked_game_number = int(ranks[3]),
-            total_wins = int(ranks[4]),
-            win_streak_value = int(ranks[5]),
-            opponent_estimated_elo = -999
+            match_date=dt,
+            elo_rank_new=int(ranks[0]),
+            elo_rank_old=int(ranks[1]),
+            elo_change=int(ranks[2]),
+            ranked_game_number=int(ranks[3]),
+            total_wins=int(ranks[4]),
+            win_streak_value=int(ranks[5]),
+            opponent_estimated_elo=-999,
         )
     except:
         logger.error("Couldn't get ranks")
         result = Match(
-            match_date = dt,
-            elo_change = -1900,
-            win_streak_value = 0,
-            opponent_estimated_elo = -999
+            match_date=dt,
+            elo_change=-1900,
+            win_streak_value=0,
+            opponent_estimated_elo=-999,
         )
-   
+
     return result
 
-def post_match(match: Match) -> requests.Response|dict:
+
+def post_match(match: Match) -> requests.Response | dict:
     try:
         logger.debug(f"Posting match: {match.ranked_game_number} to BE")
-        res = requests.post(f"http://{config.be_host}:{config.be_port}/insert-match{"?debug=1" if int(config.debug) else ""}", data=TypeAdapter(Match).dump_json(match), timeout=10)
+        res = requests.post(
+            f"http://{config.be_host}:{config.be_port}/insert-match{'?debug=1' if int(config.debug) else ''}",
+            data=TypeAdapter(Match).dump_json(match),
+            timeout=10,
+        )
         res.raise_for_status()
         return res.json()
     except requests.exceptions.Timeout:
@@ -148,8 +132,9 @@ def post_match(match: Match) -> requests.Response|dict:
     except requests.exceptions.RequestException as e:
         logger.error(f"Request error posting match {match.ranked_game_number}: {e}")
         return {"error": f"Failed to post match to backend: {e}"}
-    
-def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
+
+
+def parse_log(dev: int, extra_data: dict = {}) -> list[Match] | int:
     logger.debug("Getting log files")
     # replay_files = sorted(utils.folders.get_files(RIVALS_LOG_FOLDER))
     # if "Rivals2.log" in replay_files:
@@ -167,7 +152,8 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
             new_matches.append(match)
     potential_times = roll_up_durations(replay_files)
     logger.debug(potential_times)
-    if len(new_matches) < 1: return count
+    if len(new_matches) < 1:
+        return count
     for match in new_matches:
         res = None
         if len(new_matches) == 1 and extra_data:
@@ -183,7 +169,12 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                 total_wins=match.total_wins,
                 win_streak_value=match.win_streak_value,
                 opponent_elo=extra_data["opponent_elo"],
-                opponent_estimated_elo=calc_elo.estimate_opponent_elo(my_elo=match.elo_rank_new, elo_change=match.elo_change, result=1 if match.elo_change >= 0 else 0, opponent_elo=extra_data["opponent_elo"]),
+                opponent_estimated_elo=calc_elo.estimate_opponent_elo(
+                    my_elo=match.elo_rank_new,
+                    elo_change=match.elo_change,
+                    result=1 if match.elo_change >= 0 else 0,
+                    opponent_elo=extra_data["opponent_elo"],
+                ),
                 opponent_name=extra_data["opponent_name"],
                 game_1_char_pick=extra_data["game_1_char_pick"],
                 game_1_opponent_pick=extra_data["game_1_opponent_pick"],
@@ -203,7 +194,7 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                 game_3_winner=extra_data["game_3_winner"],
                 game_3_final_move_id=extra_data["game_3_final_move_id"],
                 game_3_duration=extra_data["game_3_duration"],
-                final_move_id=extra_data["final_move_id"]
+                final_move_id=extra_data["final_move_id"],
             )
         else:
             new_match = Match(
@@ -217,7 +208,13 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                 total_wins=match.total_wins,
                 win_streak_value=match.win_streak_value,
                 opponent_elo=match.opponent_elo,
-                opponent_estimated_elo=calc_elo.estimate_opponent_elo(my_elo=match.elo_rank_new, elo_change=match.elo_change, result=1 if match.elo_change >= 0 else 0, opponent_elo=1000, k=24),
+                opponent_estimated_elo=calc_elo.estimate_opponent_elo(
+                    my_elo=match.elo_rank_new,
+                    elo_change=match.elo_change,
+                    result=1 if match.elo_change >= 0 else 0,
+                    opponent_elo=1000,
+                    k=24,
+                ),
                 opponent_name=match.opponent_name,
                 game_1_char_pick=match.game_1_char_pick,
                 game_1_opponent_pick=match.game_1_opponent_pick,
@@ -234,31 +231,40 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match]|int:
                 game_3_stage=match.game_3_stage,
                 game_3_winner=match.game_3_winner,
                 game_3_final_move_id=match.game_3_final_move_id,
-                final_move_id=match.final_move_id
+                final_move_id=match.final_move_id,
             )
 
         try:
             if not dev:
                 logger.debug(f"Posting match: {new_match.ranked_game_number} to BE")
                 res = post_match(new_match)
-                if res.status_code == 200:
-                    logger.info(res.content['data'])
+                try:
+                    if res["error"]:
+                        logger.error(res)
+                    else:
+                        logger.info(res)
+                except Exception as e:
+                    logger.warning(f"Failed to post: {e}")
         except Exception as e:
             logger.error(f"why did posting fail?? {e}|{res}")
         try:
             if not dev:
-                logger.info(f"Inserted match: Game {new_match.ranked_game_number}, Rank {new_match.elo_rank_new}, Change {new_match.elo_change}, Final Move {new_match.final_move_id}, res: {res}")
+                logger.info(
+                    f"Inserted match: Game {new_match.ranked_game_number}, Rank {new_match.elo_rank_new}, Change {new_match.elo_change}, Final Move {new_match.final_move_id}, res: {res}"
+                )
         except Exception as e:
             logger.error(f"Something bonked lol: {e}")
         count.append(match)
 
     return count
 
+
 def main():
     parse_log(dev=int(config.debug))
 
     return 0
 
+
 if __name__ == "__main__":
-    setup_logging()
+    logger = setup_logging()
     sys.exit(main())

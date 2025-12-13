@@ -23,17 +23,17 @@ class Config:
     
     # Logging settings
     @property
-    def log_dir(self):
+    def app_log_dir(self):
         if getattr(sys, 'frozen', False):
             # Running as exe - logs next to executable
-            return os.path.join(os.path.dirname(sys.executable), self.config['logging']['dir'])
+            return os.path.join(os.path.dirname(sys.executable), self.config['logging']['app_log_dir'])
         else:
             # Running as script
-            return os.path.abspath(os.path.join(os.path.dirname(__file__), self.config['logging']['dir']))
+            return os.path.abspath(os.path.join(os.path.dirname(__file__), self.config['logging']['app_log_dir']))
     
     @property
-    def log_file(self):
-        return self.config['logging']['file']
+    def app_log_file(self):
+        return self.config['logging']['app_file']
     
     @property
     def max_log_size(self):
@@ -43,6 +43,10 @@ class Config:
     def backup_count(self):
         return int(self.config['logging']['backup_count'])
     
+    @property
+    def game_log_file(self):
+        return self.config['game']['game_log_file']
+
     # Paths
     @property
     def replay_folder(self):

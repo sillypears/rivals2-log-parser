@@ -3,13 +3,11 @@ import os, sys
 import mysql.connector
 from mysql.connector import Error
 from datetime import datetime
-import logging
-
-logger = logging.getLogger()
+from utils.logging import setup_logging
 
 class MariaDBInterface:
     def __init__(self, host, port, user, password, database):
-        logger.debug(f"Creating DB interface for {host}:{port}")
+        log.debug(f"Creating DB interface for {host}:{port}")
         try:
             self.conn = mysql.connector.connect( # type: ignore
                 host=host,
@@ -19,13 +17,13 @@ class MariaDBInterface:
                 database=database
             )
         except Error as e:
-            logger.error(f"Connection error: {e}")
+            log.error(f"Connection error: {e}")
             raise
-        logger.debug(f"Created DB interface for {host}:{port}")
+        log.debug(f"Created DB interface for {host}:{port}")
         self.cursor = self.conn.cursor()
 
     def see_if_game_exists(self, game_no: int, date: datetime) -> bool:
-        # logger.debug(f"Checking match {game_no} existance")
+        # log.debug(f"Checking match {game_no} existance")
         try:
             self.cursor.execute("SELECT m.id FROM matches_vw m LEFT JOIN seasons s ON m.season_id = s.id WHERE ranked_game_number = %s AND %s BETWEEN s.start_date AND s.end_date ", (game_no, date,))
             found = self.cursor.fetchone()
@@ -34,7 +32,7 @@ class MariaDBInterface:
         return found is not None
 
     def close(self):
-        logger.debug("Closing DB interface")
+        log.debug("Closing DB interface")
         self.cursor.close()
         self.conn.close()
 
@@ -42,4 +40,5 @@ def main():
     return 0
 
 if __name__ == "__main__":
+    log = setup_logging()
     sys.exit(main())

@@ -1,8 +1,7 @@
 import os, sys
-import logging
+from utils.log import setup_logging
 import math
 
-logger = logging.getLogger()
 
 def estimate_opponent_elo(my_elo: int, elo_change: int, result: int, opponent_elo:int, winstreak: int = 0, k: float = 24.0) -> int:
     """Try and guess elo
@@ -55,7 +54,7 @@ def estimate_opponent_elo(my_elo: int, elo_change: int, result: int, opponent_el
     odds_ratio = (1 - expected_score) / expected_score
     est_opponent_elo = my_elo + 400 * math.log10(odds_ratio)
     k *= 1 + winstreak_bonus
-    logger.debug(f"{my_elo}, {elo_change}, {result}, {int(opponent_elo)}, {int(est_opponent_elo)}, {k}")
+    log.debug(f"{my_elo}, {elo_change}, {result}, {int(opponent_elo)}, {int(est_opponent_elo)}, {k}")
     return math.floor(est_opponent_elo)
 
 def main():
@@ -63,4 +62,5 @@ def main():
     return 0
 
 if __name__ == "__main__":
+    log = setup_logging()
     sys.exit(main())

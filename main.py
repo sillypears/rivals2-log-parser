@@ -1,9 +1,7 @@
 from pathlib import Path
 import sys
 import os
-import logging
 import signal
-from logging.handlers import RotatingFileHandler
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -34,20 +32,18 @@ import json
 from datetime import datetime, timezone
 from utils.calc_elo import estimate_opponent_elo
 import log_parser
-from match_duration import roll_up_durations
 from log_parser import RIVALS_LOG_FOLDER
+from match_duration import roll_up_durations
 from config import Config
+from utils.log import setup_logging
 
 config = Config()
-
-logger = logging.getLogger()
 
 characters = {}
 stages = {}
 moves = {}
 top_moves = []
 STARTING_DEFAULT = config.opp_dir
-
 
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -63,8 +59,6 @@ major_version = 0
 version_path = resource_path("version")
 major_version, minor_version = version_path.read_text().strip().split(".")
 
-print(f"{major_version}.{minor_version}")
-
 
 class ParserWorker(QThread):
     finished = Signal(list)
@@ -78,7 +72,6 @@ class ParserWorker(QThread):
 
     def run(self):
         try:
-            log_parser.setup_logging()
             result = log_parser.parse_log(dev=self.dev, extra_data=self.extra_data)
             self.finished.emit(result)
         except Exception as e:
@@ -517,7 +510,7 @@ class MainWindow(QMainWindow):
         if file_name == "config":
             log_path = os.path.join("config.ini")
         elif file_name == "app":
-            log_path = os.path.join(config.log_dir, config.log_file)
+            log_path = os.path.join(config.app_log_dir, config.app_log_file)
         elif file_name == "rivals":
             log_path = RIVALS_LOG_FOLDER
             if sys.platform.startswith("darwin"):
@@ -533,7 +526,7 @@ class MainWindow(QMainWindow):
                     "Rivals2.log",
                 )
             elif os.name == "posix":
-                log_path = os.path.join(log_path)
+                log_path = os.path.join(log_path, config.game_log_file)
             else:
                 return
         if log_path and os.path.exists(log_path):
@@ -899,37 +892,46 @@ class MainWindow(QMainWindow):
             "game_1_opponent_pick": int(
                 characters.get(self.opp_combos[0].currentText(), -1)
             ),
+            "game_1_opponent_pick_display": self.opp_combos[0].currentText(),
             "game_1_stage": int(stages.get(self.stage_combos[0].currentText(), -1)),
+            "game_1_stage_display": self.stage_combos[0].currentText(),
             "game_1_winner": 2
             if self.winner_checks[0].isChecked()
             else (1 if self.opp_combos[0].currentText() != "N/A" else -1),
             "game_1_final_move_id": int(
                 moves.get(self.move_combos[0].currentText(), -1)
             ),
+            "game_1_final_move_display": self.move_combos[0].currentText(),
             "game_1_duration": self.duration_spins[0].value(),
             "game_2_char_pick": int(characters.get("Loxodont", -1)),
             "game_2_opponent_pick": int(
                 characters.get(self.opp_combos[1].currentText(), -1)
             ),
+            "game_2_opponent_pick_display": self.opp_combos[1].currentText(),
             "game_2_stage": int(stages.get(self.stage_combos[1].currentText(), -1)),
+            "game_2_stage_display": self.stage_combos[1].currentText(),
             "game_2_winner": 2
             if self.winner_checks[1].isChecked()
             else (1 if self.opp_combos[1].currentText() != "N/A" else -1),
             "game_2_final_move_id": int(
                 moves.get(self.move_combos[1].currentText(), -1)
             ),
+            "game_2_final_move_display": self.move_combos[1].currentText(),
             "game_2_duration": self.duration_spins[1].value(),
             "game_3_char_pick": int(characters.get("Loxodont", -1)),
             "game_3_opponent_pick": int(
                 characters.get(self.opp_combos[2].currentText(), -1)
             ),
+            "game_3_opponent_pick_display": self.opp_combos[2].currentText(),
             "game_3_stage": int(stages.get(self.stage_combos[2].currentText(), -1)),
+            "game_3_stage_display": self.stage_combos[2].currentText(),
             "game_3_winner": 2
             if self.winner_checks[2].isChecked()
             else (1 if self.opp_combos[2].currentText() != "N/A" else -1),
             "game_3_final_move_id": int(
                 moves.get(self.move_combos[2].currentText(), -1)
             ),
+            "game_3_final_move_display": self.move_combos[2].currentText(),
             "game_3_duration": self.duration_spins[2].value(),
             "opponent_elo": self.opp_elo_spin.value(),
             "opponent_name": self.name_edit.text() or "",
@@ -949,10 +951,9 @@ class MainWindow(QMainWindow):
                 f"Log parsed. Added {len(result)} match{'es' if len(result) != 1 else ''}: {','.join(f'{str(x.elo_rank_new)}({str(x.elo_change)})' for x in result) if result else ''}"
             )
         # Log GUI selections and ranked game numbers for recovery
-        logger = logging.getLogger()
-        logger.info("Parsed match GUI data: %s", self.extra_data)
+        print("Parsed match GUI data:", self.extra_data)
         for match in result:
-            logger.info("Ranked game number: %d", match.ranked_game_number)
+            print("Ranked game number:", match.ranked_game_number)
         self.run_button.setEnabled(True)
         self.refresh_top_row()
         self.name_edit.setCompleter(QCompleter(self.get_opponent_names()))
@@ -965,40 +966,14 @@ class MainWindow(QMainWindow):
         self.opp_combos[1].setCurrentText(self.opp_combos[0].currentText())
 
 
-def setup_logging():
-    os.makedirs(config.log_dir, exist_ok=True)
-
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG if int(config.debug) else logging.INFO)
-    logger.info(logger.level)
-
-    formatter = logging.Formatter(
-        "%(asctime)s - %(module)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-    file_handler = RotatingFileHandler(
-        os.path.join(config.log_dir, config.log_file),
-        maxBytes=int(config.max_log_size),
-        backupCount=int(config.backup_count),
-    )
-
-    file_handler.setFormatter(formatter)
-    file_handler.setLevel(logging.DEBUG if int(config.debug) else logging.INFO)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    console_handler.setLevel(logging.DEBUG if int(config.debug) else logging.INFO)
-
-    if not logger.handlers:
-        logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
-
 
 if __name__ == "__main__":
-    setup_logging()
+    logger = setup_logging()
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
     signal.signal(signal.SIGINT, lambda sig, frame: app.quit())
+    logger.info(
+        f"Started app @ {datetime.now()} using v{major_version}.{minor_version}"
+    )
     sys.exit(app.exec())
