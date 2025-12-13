@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QStatusBar,
 )
 from PySide6.QtGui import QAction
-from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl, QEvent
 from PySide6.QtGui import QIcon, QPixmap, QDesktopServices
 import requests
 import requests.exceptions
@@ -44,6 +44,7 @@ stages = {}
 moves = {}
 top_moves = []
 STARTING_DEFAULT = config.opp_dir
+
 
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -964,7 +965,6 @@ class MainWindow(QMainWindow):
 
     def sync_games(self):
         self.opp_combos[1].setCurrentText(self.opp_combos[0].currentText())
-
 
 
 if __name__ == "__main__":
