@@ -2,6 +2,7 @@ import os, sys
 from utils.log import setup_logging
 import math
 
+log = setup_logging()
 
 def estimate_opponent_elo(my_elo: int, elo_change: int, result: int, opponent_elo:int, winstreak: int = 0, k: float = 24.0) -> int:
     """Try and guess elo
@@ -62,5 +63,4 @@ def main():
     return 0
 
 if __name__ == "__main__":
-    log = setup_logging()
     sys.exit(main())

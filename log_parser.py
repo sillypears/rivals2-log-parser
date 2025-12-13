@@ -1,5 +1,3 @@
-import logging
-from logging.handlers import RotatingFileHandler
 import os, sys
 from dotenv import load_dotenv
 import utils.folders
@@ -32,6 +30,9 @@ RIVALS_FOLDER = os.path.join(APPDATAFOLDER, "Local", "Rivals2", "Saved")
 RIVALS_LOG_FOLDER = os.path.join(RIVALS_FOLDER, "Logs")
 
 config = Config()
+
+logger = setup_logging()
+
 
 def search_file(file: TextIO, string: str):
     lines = []
@@ -238,13 +239,8 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match] | int:
             if not dev:
                 logger.debug(f"Posting match: {new_match.ranked_game_number} to BE")
                 res = post_match(new_match)
-                try:
-                    if res["error"]:
-                        logger.error(res)
-                    else:
-                        logger.info(res)
-                except Exception as e:
-                    logger.warning(f"Failed to post: {e}")
+                logger.info(res)
+
         except Exception as e:
             logger.error(f"why did posting fail?? {e}|{res}")
         try:
@@ -266,5 +262,4 @@ def main():
 
 
 if __name__ == "__main__":
-    logger = setup_logging()
     sys.exit(main())

@@ -2,7 +2,6 @@ from pydantic.dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
-
 @dataclass
 class Match:
     match_date: datetime
