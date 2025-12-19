@@ -1,6 +1,6 @@
 import logging
 from logging.handlers import RotatingFileHandler
-import os, sys
+import os
 
 from config import Config
 config = Config()

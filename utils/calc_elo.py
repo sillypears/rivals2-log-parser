@@ -1,4 +1,4 @@
-import os, sys
+import sys
 from utils.log import setup_logging
 import math
 

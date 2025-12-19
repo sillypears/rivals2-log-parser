@@ -18,19 +18,15 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QCompleter,
     QMessageBox,
-    QFrame,
-    QMenu,
     QStatusBar,
 )
-from PySide6.QtGui import QAction
-from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl, QEvent
-from PySide6.QtGui import QIcon, QPixmap, QDesktopServices
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QIcon
 import requests
 import requests.exceptions
 import traceback
 import json
 from datetime import datetime, timezone
-from utils.calc_elo import estimate_opponent_elo
 import log_parser
 from log_parser import RIVALS_LOG_FOLDER
 from match_duration import roll_up_durations

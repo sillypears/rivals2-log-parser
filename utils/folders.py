@@ -1,4 +1,5 @@
-import os, sys
+import os
+import sys
 from utils.log import setup_logging
 
 logger = setup_logging()

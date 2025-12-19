@@ -1,6 +1,5 @@
-import os, sys
-from dotenv import load_dotenv
-import utils.folders
+import os
+import sys
 from typing import TextIO
 import re
 from datetime import datetime
@@ -8,14 +7,11 @@ import utils.calc_elo as calc_elo
 from utils.match import Match
 import requests
 import requests.exceptions
-from pprint import pprint
-import json
 from pydantic import TypeAdapter
 from config import Config
 from utils.log import setup_logging
 from match_duration import roll_up_durations
 
-import sys
 
 if sys.platform == "win32":
     APPDATAFOLDER = os.path.dirname(os.getenv("APPDATA"))
