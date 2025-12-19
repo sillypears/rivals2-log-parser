@@ -77,7 +77,6 @@ def main():
     matches = {}
     files = [os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log")]
     matches = roll_up_durations(files)
-    print(matches)
     if matches:
         return matches
     return 0
@@ -87,5 +86,4 @@ if __name__ == "__main__":
     import os
     RIVALS_FOLDER = os.path.join(os.path.dirname(os.getenv("APPDATA")), "Local", "Rivals2", "Saved")
     RIVALS_LOG_FOLDER = os.path.join(RIVALS_FOLDER, "Logs")
-    print(main())
     sys.exit(0)

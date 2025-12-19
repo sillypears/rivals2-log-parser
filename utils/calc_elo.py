@@ -55,11 +55,11 @@ def estimate_opponent_elo(my_elo: int, elo_change: int, result: int, opponent_el
     odds_ratio = (1 - expected_score) / expected_score
     est_opponent_elo = my_elo + 400 * math.log10(odds_ratio)
     k *= 1 + winstreak_bonus
-    log.debug(f"{my_elo}, {elo_change}, {result}, {int(opponent_elo)}, {int(est_opponent_elo)}, {k}")
+    log.debug(f"Elo:{my_elo}, Change:{elo_change}, Result:{result}, OppElo:{int(opponent_elo)}, OppEloEst{int(est_opponent_elo)}, K:{k}")
     return math.floor(est_opponent_elo)
 
 def main():
-    print(estimate_opponent_elo(my_elo=1009, elo_change=11, result=1, opponent_elo=-2, winstreak=3))
+    estimate_opponent_elo(my_elo=1009, elo_change=11, result=1, opponent_elo=-2, winstreak=3)
     return 0
 
 if __name__ == "__main__":
