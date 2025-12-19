@@ -206,3 +206,4 @@ pyvenv.cfg
 dump.sql
 .vscode/settings.json
 config.ini
+logs/last_parsed.json
