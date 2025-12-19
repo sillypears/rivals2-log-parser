@@ -952,9 +952,9 @@ class MainWindow(QMainWindow):
                 f"Log parsed. Added {len(result)} match{'es' if len(result) != 1 else ''}: {','.join(f'{str(x.elo_rank_new)}({str(x.elo_change)})' for x in result) if result else ''}"
             )
         # Log GUI selections and ranked game numbers for recovery
-        print("Parsed match GUI data:", self.extra_data)
+        logger.info("Parsed match GUI data:", self.extra_data)
         for match in result:
-            print("Ranked game number:", match.ranked_game_number)
+            logger.info("Ranked game number:", match.ranked_game_number)
         self.run_button.setEnabled(True)
         self.refresh_top_row()
         self.name_edit.setCompleter(QCompleter(self.get_opponent_names()))
