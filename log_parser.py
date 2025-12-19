@@ -89,7 +89,7 @@ def extract_numbers(line: str, file: str = None) -> Match:
         else:
             dt = None
     except:
-        logging.error(f"Couldn't extract date: {match.group(1)} {match.group(2)}")
+        logger.error(f"Couldn't extract date: {match.group(1)} {match.group(2)}")
     win_loss = 0 if int(ranks[2]) < 0 else 1
     try:
         result = Match(
