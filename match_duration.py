@@ -11,7 +11,9 @@ def roll_up_durations(files: list) -> dict:
         r"URivalsRankUpdateMessage::OnReceivedFromServer LocalPlayerIndex 0: (\d+), (\d+), (-?\d+), (\d+), (\d+), (\d+)"
     )
     results = {}
+    results["all_durations"] = []
     durations = []
+    unchanged_durations = []
     skip_index = None  # remember which line index we already used as a trailing duration
     for file in files:
         with open(file, 'r') as f:
@@ -65,10 +67,10 @@ def roll_up_durations(files: list) -> dict:
                         "unknown": unknown,
                         "durations": cleaned,
                     }
-
+                    
                     # Reset for next match
                     durations.clear()
-
+                    results["all_durations"] = combined
                 i += 1
 
     return results

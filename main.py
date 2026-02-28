@@ -599,14 +599,13 @@ class MainWindow(QMainWindow):
         data = roll_up_durations([os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log")])
         if not data:
             return
-        self.output_text.append(str(data))
         last = data[list(data.keys())[-1]]["durations"]
         for i, d in enumerate(self.duration_spins):
             if i < len(last):
                 d.setValue(int(last[i]))
             else:
                 d.setValue(-1)
-
+        self.output_text.append(str(data["all_durations"]))
     def get_opponent_names(self):
         try:
             response = requests.get(
@@ -966,6 +965,7 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     logger = setup_logging()
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon('icon.png'))
     window = MainWindow()
     window.show()
     signal.signal(signal.SIGINT, lambda sig, frame: app.quit())
