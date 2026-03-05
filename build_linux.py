@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+import os
 import shutil
 from pathlib import Path
 
@@ -15,6 +16,7 @@ def extra_binaries():
 def run_build(args):
     cmd = [
         sys.executable, "-m", "PyInstaller",
+        f"--name=rivals2logger",
         "--onefile",
         "--windowed",
         f"--add-data=version{DATA_SEP}.",
@@ -54,6 +56,8 @@ def clean():
         shutil.rmtree(p, ignore_errors=True)
     for spec in Path(".").glob("*.spec"):
         spec.unlink()
+    os.mkdir("dist")
+    shutil.copyfile("config.ini", os.path.join("dist", "config.ini"))
 
 if __name__ == "__main__":
     import argparse

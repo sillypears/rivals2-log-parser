@@ -12,6 +12,7 @@ def roll_up_durations(files: list) -> dict:
     )
     results = {}
     results["all_durations"] = []
+    results["durations"] = {}
     durations = []
     unchanged_durations = []
     skip_index = None  # remember which line index we already used as a trailing duration
@@ -31,6 +32,8 @@ def roll_up_durations(files: list) -> dict:
                 if m_d:
                     durations.append(int(m_d.group(1)))
                     i += 1
+                    results["all_durations"].append(int(m_d.group(1)))
+
                     continue
 
                 m_r = rank_update_re.search(line)
@@ -45,6 +48,7 @@ def roll_up_durations(files: list) -> dict:
                             m_next = duration_re.search(next_line)
                             if m_next:
                                 lookahead_duration = int(m_next.group(1))
+                                results["all_durations"].append(int(m_next.group(1)))
                                 skip_index = i + j  # mark this duration line as used
                                 break
 
@@ -58,8 +62,8 @@ def roll_up_durations(files: list) -> dict:
                         if not cleaned or d != cleaned[-1]:
                             cleaned.append(d)
                     cleaned = cleaned[:3]  # cap at 3 games
-
-                    results[match_id] = {
+                    results["durations"][match_id] = {}
+                    results["durations"][match_id] = {
                         "new_elo": new_elo,
                         "old_elo": old_elo,
                         "delta": delta,
@@ -70,9 +74,7 @@ def roll_up_durations(files: list) -> dict:
                     
                     # Reset for next match
                     durations.clear()
-                    results["all_durations"] = combined
                 i += 1
-
     return results
 
 def main():

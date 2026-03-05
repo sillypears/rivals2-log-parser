@@ -525,20 +525,33 @@ class MainWindow(QMainWindow):
             elif os.name == "posix":
                 log_path = os.path.join(log_path, config.game_log_file)
             else:
+                logger.warning("No rivals path defined")
                 return
+        else:
+            logger.warning("No file defined")
+            return
         if log_path and os.path.exists(log_path):
             import subprocess
-
             env = os.environ.copy()
             if "LD_LIBRARY_PATH" in env:
                 del env["LD_LIBRARY_PATH"]
+            env["XDG_SESSION_TYPE"] == "wayland"
             if sys.platform == "win32":
+                logger.debug(f"Opening {log_path} on {sys.platform}")
                 os.startfile(log_path)
             elif sys.platform == "darwin":
+                logger.debug(f"Opening {log_path} on {sys.platform}")
                 subprocess.run(["open", log_path], env=env)
+            elif sys.platform == "linux":
+                logger.debug(f"Opening {log_path} on {sys.platform}")
+                logger.debug(f"{env}")
+                output = subprocess.run(["setsid", "-f", "xdg-open", log_path], env=env)
+                # output = os.system(f"xdg-open '{log_path}'")
+                logger.debug(str(output))
             else:
-                subprocess.run(["xdg-open", log_path], env=env)
-
+                logger.error("No platfor defined")
+            return
+        return
     def get_final_move_top_list(self):
         try:
             res = requests.get(
@@ -597,15 +610,15 @@ class MainWindow(QMainWindow):
 
     def get_match_times(self):
         data = roll_up_durations([os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log")])
-        if not data:
+        if not data["durations"]:
             return
-        last = data[list(data.keys())[-1]]["durations"]
+        last = data["durations"][list(data["durations"].keys())[-1]]["durations"]
         for i, d in enumerate(self.duration_spins):
             if i < len(last):
                 d.setValue(int(last[i]))
             else:
                 d.setValue(-1)
-        self.output_text.append(str(data["all_durations"]))
+        if data["all_durations"]: self.output_text.append(str(data["all_durations"]))
     def get_opponent_names(self):
         try:
             response = requests.get(
