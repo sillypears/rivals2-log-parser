@@ -532,6 +532,7 @@ class MainWindow(QMainWindow):
             return
         if log_path and os.path.exists(log_path):
             import subprocess
+
             env = os.environ.copy()
             if "LD_LIBRARY_PATH" in env:
                 del env["LD_LIBRARY_PATH"]
@@ -552,6 +553,7 @@ class MainWindow(QMainWindow):
                 logger.error("No platfor defined")
             return
         return
+
     def get_final_move_top_list(self):
         try:
             res = requests.get(
@@ -618,7 +620,9 @@ class MainWindow(QMainWindow):
                 d.setValue(int(last[i]))
             else:
                 d.setValue(-1)
-        if data["all_durations"]: self.output_text.append(str(data["all_durations"]))
+        if data["all_durations"]:
+            self.output_text.append(str(data["all_durations"]))
+
     def get_opponent_names(self):
         try:
             response = requests.get(
@@ -685,21 +689,31 @@ class MainWindow(QMainWindow):
             )
             response.raise_for_status()
             stage_json = response.json()
-            counter = -1
+
+            # Filter for stages available in ranked singles
+            ranked_stages = []
             for stage in stage_json["data"]:
-                if stage["stage_type"] != "Doubles":
-                    if counter == -1 and stage["counter_pick"] == -1:
-                        stages1[stage["display_name"]] = stage["id"]
-                    if counter == -1 and stage["counter_pick"] == 0:
-                        stages["sepior1"] = -1
-                        stages1["sepior1"] = -1
-                    if stage["counter_pick"] == 0:
-                        counter = 0
-                        stages1[stage["display_name"]] = stage["id"]
-                    if counter == 0 and stage["counter_pick"] == 1:
-                        stages["sepior2"] = -1
-                        counter = 1
-                    stages[stage["display_name"]] = stage["id"]
+                if stage.get("ranked_singles", 0) and stage["stage_type"] != "Doubles":
+                    ranked_stages.append(stage)
+
+            # Sort stages by list_order (None values treated as high numbers to appear at end)
+            ranked_stages.sort(key=lambda x: x.get("list_order", 999))
+
+            # Build stage dictionaries for UI
+            counter = -1
+            for stage in ranked_stages:
+                if counter == -1 and stage["counter_pick"] == -1:
+                    stages1[stage["display_name"]] = stage["id"]
+                if counter == -1 and stage["counter_pick"] == 0:
+                    stages["sepior1"] = -1
+                    stages1["sepior1"] = -1
+                if stage["counter_pick"] == 0:
+                    counter = 0
+                    stages1[stage["display_name"]] = stage["id"]
+                if counter == 0 and stage["counter_pick"] == 1:
+                    stages["sepior2"] = -1
+                    counter = 1
+                stages[stage["display_name"]] = stage["id"]
             stage_names = list(stages.keys())
         except requests.exceptions.Timeout:
             self.output_text.append("Error: Timeout fetching stage data from server.")
@@ -741,8 +755,15 @@ class MainWindow(QMainWindow):
             self.output_text.append("Error: Failed to fetch move data from server.")
             logger.error(f"Request error fetching moves: {e}")
 
+        ranked_stages_count = len(
+            [
+                x
+                for x in stage_json["data"]
+                if x.get("ranked_singles", 0) and x["list_order"] > 0
+            ]
+        )
         self.output_text.append(
-            f"Fetched {len([x for x in characters_json['data'] if x['list_order'] > 0])} characters, {len([x for x in stage_json['data'] if x['list_order'] > 0])} stages and {len([x for x in moves_json['data'] if x['list_order'] > 0])} moves."
+            f"Fetched {len([x for x in characters_json['data'] if x['list_order'] > 0])} characters, {ranked_stages_count} stages (ranked singles) and {len([x for x in moves_json['data'] if x['list_order'] > 0])} moves."
         )
 
         for x in range(3):
@@ -978,7 +999,7 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     logger = setup_logging()
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon('icon.png'))
+    app.setWindowIcon(QIcon("icon.png"))
     window = MainWindow()
     window.show()
     signal.signal(signal.SIGINT, lambda sig, frame: app.quit())
