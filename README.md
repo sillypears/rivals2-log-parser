@@ -1,6 +1,7 @@
 # lolhi
 
-![alt](images/docs/app.png)
+<img width="747" height="641" alt="image" src="https://github.com/user-attachments/assets/dbc16285-404c-495c-9288-31075fbc27a0" />
+
 ## Requirements
 
 1. [GUI for Logging](https://github.com/sillypears/rivals2-log-parser)
