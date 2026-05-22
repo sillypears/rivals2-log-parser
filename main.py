@@ -153,6 +153,10 @@ class MainWindow(QMainWindow):
         self.theme_combo.currentTextChanged.connect(self.change_theme)
         top_layout.addWidget(self.theme_combo)
 
+        self.lookup_button = QPushButton("Lookup User")
+        self.lookup_button.clicked.connect(self.lookup_user)
+        top_layout.addWidget(self.lookup_button)
+
         main_layout.addLayout(top_layout)
 
         # Output text
@@ -906,6 +910,21 @@ class MainWindow(QMainWindow):
                 self.duration_spins[x].setValue(duration)
         except json.JSONDecodeError:
             QMessageBox.warning(self, "Error", "Invalid JSON in clipboard.")
+
+    def lookup_user(self):
+        """Send a lookup request for the current opponent name"""
+        opponent_name = self.name_edit.text().strip()
+        if not opponent_name:
+            return
+            
+        payload = {
+            "opponent_name": opponent_name
+        }
+        requests.post(
+            f"http://{config.be_host}:{config.be_port}/ui_user_lookup",
+            json=payload,
+            timeout=10
+        )
 
     def run_parser(self):
         self.run_button.setEnabled(False)
