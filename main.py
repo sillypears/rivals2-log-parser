@@ -271,6 +271,7 @@ class MainWindow(QMainWindow):
         self.output_text.setFocusPolicy(Qt.NoFocus)
         self.my_elo_spin.setFocusPolicy(Qt.NoFocus)
         self.change_elo_spin.setFocusPolicy(Qt.NoFocus)
+        self.lookup_button.setFocusPolicy(Qt.NoFocus)
         refresh_button.setFocusPolicy(Qt.NoFocus)
         times_button.setFocusPolicy(Qt.NoFocus)
         copy_button.setFocusPolicy(Qt.NoFocus)
