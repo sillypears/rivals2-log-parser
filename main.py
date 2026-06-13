@@ -32,6 +32,7 @@ from log_parser import RIVALS_LOG_FOLDER
 from match_duration import roll_up_durations
 from config import Config
 from utils.log import setup_logging
+from ping_check import PingWorker, PingDialog
 
 config = Config()
 
@@ -103,10 +104,16 @@ class MainWindow(QMainWindow):
         self.setup_reset_menus()
         self.adjustSize()
 
+        self.ping_worker = PingWorker()
+        self.ping_worker.start()
+
     def closeEvent(self, event):
         if hasattr(self, "worker") and self.worker.isRunning():
             self.worker.quit()
             self.worker.wait()
+        if hasattr(self, "ping_worker"):
+            self.ping_worker.stop()
+            self.ping_worker.wait()
         event.accept()
 
     def setup_ui(self):
@@ -134,6 +141,10 @@ class MainWindow(QMainWindow):
         rivals_log_button = QPushButton("Rivals Log")
         rivals_log_button.clicked.connect(lambda: self.open_log_file("rivals"))
         top_layout.addWidget(rivals_log_button)
+
+        ping_button = QPushButton("Ping Log")
+        ping_button.clicked.connect(self.show_ping_log)
+        top_layout.addWidget(ping_button)
 
         self.debug_checkbox = QCheckBox("Debug")
         top_layout.addWidget(self.debug_checkbox)
@@ -266,6 +277,7 @@ class MainWindow(QMainWindow):
         config_button.setFocusPolicy(Qt.NoFocus)
         app_log_button.setFocusPolicy(Qt.NoFocus)
         rivals_log_button.setFocusPolicy(Qt.NoFocus)
+        ping_button.setFocusPolicy(Qt.NoFocus)
         self.debug_checkbox.setFocusPolicy(Qt.NoFocus)
         self.theme_combo.setFocusPolicy(Qt.NoFocus)
         self.output_text.setFocusPolicy(Qt.NoFocus)
@@ -558,6 +570,10 @@ class MainWindow(QMainWindow):
                 logger.error("No platfor defined")
             return
         return
+
+    def show_ping_log(self):
+        dialog = PingDialog(self.ping_worker, self)
+        dialog.show()
 
     def get_final_move_top_list(self):
         try:
