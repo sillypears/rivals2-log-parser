@@ -21,6 +21,7 @@ from config import Config
 
 config = Config()
 
+TRESHOLD = 30.0
 
 class PingWorker(QThread):
     new_ping = Signal(str)
@@ -56,13 +57,16 @@ class PingWorker(QThread):
                     cmd, capture_output=True, text=True, timeout=10
                 )
                 time_ms = None
+                time_over_thresh = ""
                 if result.returncode == 0:
                     m = re.search(
                         r'time[=<]\s*(\d+\.?\d*)', result.stdout, re.IGNORECASE
                     )
                     if m:
                         time_ms = float(m.group(1))
-                    status = f"{time_ms}ms" if time_ms is not None else "OK"
+                    if time_ms > TRESHOLD:
+                        time_over_thresh = " <--"
+                    status = f"{time_ms}ms{time_over_thresh}" if time_ms is not None else "OK"
                 else:
                     m = re.search(
                         r'time[=<]\s*(\d+\.?\d*)', result.stdout, re.IGNORECASE
