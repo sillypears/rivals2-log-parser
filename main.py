@@ -122,34 +122,37 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout(central_widget)
 
         # Top section
-        top_layout = QHBoxLayout()
+        top_layout = QVBoxLayout()
+
+        top_row1 = QHBoxLayout()
+        top_row2 = QHBoxLayout()
 
         self.run_button = QPushButton("Run Log Parser")
         self.run_button.clicked.connect(self.run_parser)
-        top_layout.addWidget(self.run_button)
-
-        top_layout.addStretch()
+        top_row1.addWidget(self.run_button)
 
         config_button = QPushButton("Config")
         config_button.clicked.connect(lambda: self.open_log_file("config"))
-        top_layout.addWidget(config_button)
+        top_row1.addWidget(config_button)
 
         app_log_button = QPushButton("App Log")
         app_log_button.clicked.connect(lambda: self.open_log_file("app"))
-        top_layout.addWidget(app_log_button)
+        top_row1.addWidget(app_log_button)
 
         rivals_log_button = QPushButton("Rivals Log")
         rivals_log_button.clicked.connect(lambda: self.open_log_file("rivals"))
-        top_layout.addWidget(rivals_log_button)
+        top_row1.addWidget(rivals_log_button)
 
         ping_button = QPushButton("Ping Log")
         ping_button.clicked.connect(self.show_ping_log)
-        top_layout.addWidget(ping_button)
+        top_row1.addWidget(ping_button)
+
+        top_layout.addLayout(top_row1)
 
         self.debug_checkbox = QCheckBox("Debug")
-        top_layout.addWidget(self.debug_checkbox)
+        top_row2.addWidget(self.debug_checkbox)
 
-        top_layout.addWidget(QLabel("Theme:"))
+        top_row2.addWidget(QLabel("Theme:"))
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(
             [
@@ -162,11 +165,15 @@ class MainWindow(QMainWindow):
             ]
         )
         self.theme_combo.currentTextChanged.connect(self.change_theme)
-        top_layout.addWidget(self.theme_combo)
+        top_row2.addWidget(self.theme_combo)
 
         self.lookup_button = QPushButton("Lookup User")
         self.lookup_button.clicked.connect(self.lookup_user)
-        top_layout.addWidget(self.lookup_button)
+        top_row2.addWidget(self.lookup_button)
+
+        top_row2.addStretch()
+
+        top_layout.addLayout(top_row2)
 
         main_layout.addLayout(top_layout)
 
