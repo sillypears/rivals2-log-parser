@@ -78,3 +78,16 @@ class Config:
     @property
     def opp_dir(self):
         return int(self.config['app']['opp_default'])
+
+    # Ping settings
+    @property
+    def ping_threshold(self):
+        return float(self.config.get('ping', 'threshold', fallback='30.0'))
+
+    @property
+    def ping_gold_window(self):
+        return int(self.config.get('ping', 'gold_window', fallback='50'))
+
+    @property
+    def ping_red_window(self):
+        return int(self.config.get('ping', 'red_window', fallback='10'))

@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QStatusBar,
 )
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QColor
 import requests
 import requests.exceptions
 import traceback
@@ -32,7 +32,7 @@ from log_parser import RIVALS_LOG_FOLDER
 from match_duration import roll_up_durations
 from config import Config
 from utils.log import setup_logging
-from ping_check import PingWorker, PingDialog
+from ping_check import PingWorker, PingDialog, TRESHOLD, PING_GOLD_WINDOW, PING_RED_WINDOW
 
 config = Config()
 
@@ -105,7 +105,10 @@ class MainWindow(QMainWindow):
         self.adjustSize()
 
         self.ping_worker = PingWorker()
+        self.ping_worker.ping_result.connect(self._on_ping_result)
         self.ping_worker.start()
+
+        self.ping_history = []
 
     def closeEvent(self, event):
         if hasattr(self, "worker") and self.worker.isRunning():
@@ -316,6 +319,13 @@ class MainWindow(QMainWindow):
         version_label = QLabel(app_version)
         version_label.setStyleSheet("QLabel { color: gray; padding: 0 8px; }")
         self.statusBar.addPermanentWidget(version_label)
+        self.ping_indicator = QLabel("    ")
+        self.ping_indicator.setFixedSize(20, 20)
+        self.ping_indicator.setStyleSheet(
+            "background-color: gray; border-radius: 10px;"
+        )
+        self.ping_indicator.setToolTip("Ping status: waiting for data")
+        self.statusBar.addPermanentWidget(self.ping_indicator)
 
     def setup_reset_menus(self):
         widgets_to_reset = (
@@ -581,6 +591,30 @@ class MainWindow(QMainWindow):
     def show_ping_log(self):
         dialog = PingDialog(self.ping_worker, self)
         dialog.show()
+
+    def _on_ping_result(self, data):
+        self.ping_history.append(data)
+        if len(self.ping_history) > PING_GOLD_WINDOW:
+            self.ping_history = self.ping_history[-PING_GOLD_WINDOW:]
+
+        recent = self.ping_history[-PING_RED_WINDOW:]
+        if any(p.get("failed") for p in recent):
+            color = "red"
+            tip = f"Ping: FAIL in last {PING_RED_WINDOW} pings"
+        elif any(
+            p.get("time_ms") is not None and p["time_ms"] > TRESHOLD
+            for p in self.ping_history
+        ):
+            color = "gold"
+            tip = f"Ping: over threshold in last {PING_GOLD_WINDOW}"
+        else:
+            color = "limegreen"
+            tip = f"Ping: all good (last {PING_GOLD_WINDOW} under threshold)"
+
+        self.ping_indicator.setStyleSheet(
+            f"background-color: {color}; border-radius: 10px;"
+        )
+        self.ping_indicator.setToolTip(tip)
 
     def get_final_move_top_list(self):
         try:
