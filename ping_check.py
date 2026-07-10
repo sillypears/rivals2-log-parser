@@ -29,13 +29,13 @@ class PingWorker(QThread):
     new_ping = Signal(str)
     ping_result = Signal(object)
 
-    def __init__(self, target="8.8.8.8", parent=None):
+    def __init__(self, targets=None, parent=None):
         super().__init__(parent)
-        self.target = target
+        self.targets = targets or config.ping_targets
         self._running = True
         os.makedirs(config.app_log_dir, exist_ok=True)
         self.recent_lines = deque(maxlen=500)
-        self.recent_results = deque(maxlen=50)
+        self.recent_results = {}
 
         log_path = os.path.join(config.app_log_dir, "ping_check.log")
         self.logger = logging.getLogger("ping_check")
@@ -47,64 +47,67 @@ class PingWorker(QThread):
         )
         self.logger.addHandler(handler)
 
+    def _ping_one(self, target, system):
+        ping_data = {"target": target, "time_ms": None, "failed": False}
+        try:
+            if system == "windows":
+                cmd = ["ping", "-n", "1", target]
+            else:
+                cmd = ["ping", "-c", "1", "-W", "2", target]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            time_ms = None
+            time_over_thresh = ""
+            if result.returncode == 0:
+                m = re.search(r'time[=<]\s*(\d+\.?\d*)', result.stdout, re.IGNORECASE)
+                if m:
+                    time_ms = float(m.group(1))
+                    ping_data["time_ms"] = time_ms
+                if time_ms is not None and time_ms > TRESHOLD:
+                    time_over_thresh = " <--"
+                ping_data["status"] = f"{time_ms}ms{time_over_thresh}" if time_ms is not None else "OK"
+            else:
+                m = re.search(r'time[=<]\s*(\d+\.?\d*)', result.stdout, re.IGNORECASE)
+                if m:
+                    time_ms = float(m.group(1))
+                    ping_data["time_ms"] = time_ms
+                    ping_data["status"] = f"{time_ms}ms"
+                else:
+                    ping_data["failed"] = True
+                    ping_data["status"] = "FAIL"
+        except subprocess.TimeoutExpired:
+            ping_data["failed"] = True
+            ping_data["status"] = "TIMEOUT"
+        except Exception as e:
+            ping_data["failed"] = True
+            ping_data["status"] = f"ERROR: {e}"
+        return ping_data
+
     def run(self):
         system = platform.system().lower()
+        target_width = max(len(t) for t in self.targets)
         while self._running:
-            start = datetime.now()
-            ping_data = {"time_ms": None, "failed": False}
-            try:
-                if system == "windows":
-                    cmd = ["ping", "-n", "1", self.target]
-                else:
-                    cmd = ["ping", "-c", "1", "-W", "2", self.target]
+            round_start = datetime.now()
+            for target in self.targets:
+                if not self._running:
+                    return
+                ping_data = self._ping_one(target, system)
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                line = f"{target:{target_width}} - {ping_data['status']}"
+                display = f"{ts} - {line}"
+                self.recent_lines.append(display)
+                if target not in self.recent_results:
+                    self.recent_results[target] = deque(maxlen=PING_GOLD_WINDOW)
+                self.recent_results[target].append(ping_data)
+                try:
+                    self.logger.info(line)
+                except Exception:
+                    pass
+                self.new_ping.emit(display)
+                self.ping_result.emit(ping_data)
 
-                result = subprocess.run(
-                    cmd, capture_output=True, text=True, timeout=10
-                )
-                time_ms = None
-                time_over_thresh = ""
-                if result.returncode == 0:
-                    m = re.search(
-                        r'time[=<]\s*(\d+\.?\d*)', result.stdout, re.IGNORECASE
-                    )
-                    if m:
-                        time_ms = float(m.group(1))
-                        ping_data["time_ms"] = time_ms
-                    if time_ms is not None and time_ms > TRESHOLD:
-                        time_over_thresh = " <--"
-                    status = f"{time_ms}ms{time_over_thresh}" if time_ms is not None else "OK"
-                else:
-                    m = re.search(
-                        r'time[=<]\s*(\d+\.?\d*)', result.stdout, re.IGNORECASE
-                    )
-                    if m:
-                        time_ms = float(m.group(1))
-                        ping_data["time_ms"] = time_ms
-                        status = f"{time_ms}ms"
-                    else:
-                        ping_data["failed"] = True
-                        status = "FAIL"
-            except subprocess.TimeoutExpired:
-                ping_data["failed"] = True
-                status = "TIMEOUT"
-            except Exception as e:
-                ping_data["failed"] = True
-                status = f"ERROR: {e}"
-
-            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            line = f"{self.target} - {status}"
-            display = f"{ts} - {line}"
-            self.recent_lines.append(display)
-            self.recent_results.append(ping_data)
-            try:
-                self.logger.info(line)
-            except Exception:
-                pass
-            self.new_ping.emit(display)
-            self.ping_result.emit(ping_data)
-
-            elapsed = (datetime.now() - start).total_seconds()
-            sleep_ms = max(100, int((1.0 - elapsed) * 1000))
+            elapsed = (datetime.now() - round_start).total_seconds()
+            sleep_ms = max(100, int((config.ping_interval - elapsed) * 1000))
             for _ in range(sleep_ms // 100):
                 if not self._running:
                     return
@@ -119,7 +122,8 @@ class PingWorker(QThread):
 class PingDialog(QDialog):
     def __init__(self, worker, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Ping Check - 8.8.8.8")
+        targets_str = ", ".join(worker.targets)
+        self.setWindowTitle(f"Ping Check - {targets_str}")
         self.setMinimumSize(650, 450)
 
         layout = QVBoxLayout(self)

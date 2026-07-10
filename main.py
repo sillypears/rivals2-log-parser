@@ -108,7 +108,7 @@ class MainWindow(QMainWindow):
         self.ping_worker.ping_result.connect(self._on_ping_result)
         self.ping_worker.start()
 
-        self.ping_history = []
+        self.ping_history = {}
 
     def closeEvent(self, event):
         if hasattr(self, "worker") and self.worker.isRunning():
@@ -593,23 +593,37 @@ class MainWindow(QMainWindow):
         dialog.show()
 
     def _on_ping_result(self, data):
-        self.ping_history.append(data)
-        if len(self.ping_history) > PING_GOLD_WINDOW:
-            self.ping_history = self.ping_history[-PING_GOLD_WINDOW:]
+        target = data["target"]
+        if target not in self.ping_history:
+            self.ping_history[target] = []
+        self.ping_history[target].append(data)
+        if len(self.ping_history[target]) > PING_GOLD_WINDOW:
+            self.ping_history[target] = self.ping_history[target][-PING_GOLD_WINDOW:]
 
-        recent = self.ping_history[-PING_RED_WINDOW:]
-        if any(p.get("failed") for p in recent):
+        any_failed = any(
+            any(p.get("failed") for p in hist[-PING_RED_WINDOW:])
+            for hist in self.ping_history.values()
+        )
+        any_over = any(
+            any(p.get("time_ms") is not None and p["time_ms"] > TRESHOLD for p in hist)
+            for hist in self.ping_history.values()
+        )
+
+        if any_failed:
             color = "red"
             tip = f"Ping: FAIL in last {PING_RED_WINDOW} pings"
-        elif any(
-            p.get("time_ms") is not None and p["time_ms"] > TRESHOLD
-            for p in self.ping_history
-        ):
+        elif any_over:
             color = "gold"
             tip = f"Ping: over threshold in last {PING_GOLD_WINDOW}"
         else:
             color = "limegreen"
             tip = f"Ping: all good (last {PING_GOLD_WINDOW} under threshold)"
+
+        details = "; ".join(
+            f"{t}: last={hist[-1].get('time_ms', '?')}ms" if hist else f"{t}: no data"
+            for t, hist in self.ping_history.items()
+        )
+        tip += f" ({details})"
 
         self.ping_indicator.setStyleSheet(
             f"background-color: {color}; border-radius: 10px;"

@@ -91,3 +91,12 @@ class Config:
     @property
     def ping_red_window(self):
         return int(self.config.get('ping', 'red_window', fallback='10'))
+
+    @property
+    def ping_targets(self):
+        raw = self.config.get('ping', 'targets', fallback='8.8.8.8')
+        return [t.strip() for t in raw.split(',') if t.strip()]
+
+    @property
+    def ping_interval(self):
+        return float(self.config.get('ping', 'interval', fallback='1.0'))
