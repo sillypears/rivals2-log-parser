@@ -688,12 +688,13 @@ class MainWindow(QMainWindow):
 
     def get_match_times(self):
         data = roll_up_durations([os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log")])
+        alld = data['all_durations'][-3:] if len(data['all_durations']) >= 3 else data['all_durations'][-2:]
         if not data["durations"]:
             return
         last = data["durations"][list(data["durations"].keys())[-1]]["durations"]
         for i, d in enumerate(self.duration_spins):
             if i < len(last):
-                d.setValue(int(last[i]))
+                d.setValue(int(alld[i]))
             else:
                 d.setValue(-1)
         if data["all_durations"]:
