@@ -77,6 +77,40 @@ class ParserWorker(QThread):
             traceback.print_exc()
 
 
+PLAYERS_INTERVAL = 5 * 60  # seconds between players-playing checks
+
+
+class PlayersWorker(QThread):
+    result = Signal(object)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._running = True
+
+    def run(self):
+        while self._running:
+            try:
+                res = requests.get(
+                    f"http://{config.be_host}:{config.be_port}/players-playing",
+                    timeout=10,
+                )
+                res.raise_for_status()
+                self.result.emit(
+                    {"player_count": res.json()["data"]["player_count"]}
+                )
+            except Exception as e:
+                self.result.emit({"error": str(e)})
+            for _ in range(int(PLAYERS_INTERVAL * 10)):
+                if not self._running:
+                    return
+                self.msleep(100)
+            if not self._running:
+                return
+
+    def stop(self):
+        self._running = False
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -108,6 +142,10 @@ class MainWindow(QMainWindow):
         self.ping_worker.ping_result.connect(self._on_ping_result)
         self.ping_worker.start()
 
+        self.players_worker = PlayersWorker()
+        self.players_worker.result.connect(self._on_players_result)
+        self.players_worker.start()
+
         self.ping_history = {}
 
     def closeEvent(self, event):
@@ -117,7 +155,19 @@ class MainWindow(QMainWindow):
         if hasattr(self, "ping_worker"):
             self.ping_worker.stop()
             self.ping_worker.wait()
+        if hasattr(self, "players_worker"):
+            self.players_worker.stop()
+            self.players_worker.wait()
         event.accept()
+
+    def _on_players_result(self, data):
+        if "player_count" in data:
+            self.players_label.setText(f"Playing: {data['player_count']}")
+            self.players_label.setToolTip(
+                f"{data['player_count']} players currently playing"
+            )
+        else:
+            logger.debug(f"Fetching players-playing failed: {data['error']}")
 
     def setup_ui(self):
         central_widget = QWidget()
@@ -316,6 +366,9 @@ class MainWindow(QMainWindow):
         app_version = f"Version: {major_version}.{minor_version}"
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
+        self.players_label = QLabel("Playing: -")
+        self.players_label.setStyleSheet("QLabel { color: gray; padding: 0 8px; }")
+        self.statusBar.addPermanentWidget(self.players_label)
         version_label = QLabel(app_version)
         version_label.setStyleSheet("QLabel { color: gray; padding: 0 8px; }")
         self.statusBar.addPermanentWidget(version_label)
