@@ -36,6 +36,8 @@ class Match:
     game_3_duration: Optional[int] = -1
     season_id: Optional[int] = -1
     final_move_id: Optional[int] = -1
+    server_id: Optional[int] = -1
+    match_issue: Optional[bool] = False
     notes: Optional[str] = ""
 
     def __repr__(self):

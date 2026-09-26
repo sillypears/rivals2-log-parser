@@ -173,6 +173,8 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match] | int:
                     opponent_elo=extra_data["opponent_elo"],
                 ),
                 opponent_name=extra_data["opponent_name"],
+                server_id=extra_data.get("server_id", -1),
+                match_issue=extra_data.get("match_issue", False),
                 game_1_char_pick=extra_data["game_1_char_pick"],
                 game_1_opponent_pick=extra_data["game_1_opponent_pick"],
                 game_1_stage=extra_data["game_1_stage"],

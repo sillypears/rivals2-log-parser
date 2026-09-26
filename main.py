@@ -39,6 +39,7 @@ config = Config()
 characters = {}
 stages = {}
 moves = {}
+servers = {}
 top_moves = []
 STARTING_DEFAULT = config.opp_dir
 
@@ -279,6 +280,16 @@ class MainWindow(QMainWindow):
         self.change_elo_spin.setValue(0)
         bottom_layout.addWidget(self.change_elo_spin, 2, 3)
 
+        # Server section
+        bottom_layout.addWidget(QLabel("Server"), 1, 4)
+        self.server_combo = QComboBox()
+        self.server_combo.addItem("Loading...")
+        self.server_combo.setMinimumWidth(80)
+        bottom_layout.addWidget(self.server_combo, 2, 4)
+
+        self.issue_check = QCheckBox("issue")
+        bottom_layout.addWidget(self.issue_check, 2, 5)
+
         # Name field
         bottom_layout.addWidget(QLabel("Name"), 3, 1)
         self.name_edit = QLineEdit()
@@ -343,6 +354,8 @@ class MainWindow(QMainWindow):
         self.output_text.setFocusPolicy(Qt.NoFocus)
         self.my_elo_spin.setFocusPolicy(Qt.NoFocus)
         self.change_elo_spin.setFocusPolicy(Qt.NoFocus)
+        self.server_combo.setFocusPolicy(Qt.NoFocus)
+        self.issue_check.setFocusPolicy(Qt.NoFocus)
         self.lookup_button.setFocusPolicy(Qt.NoFocus)
         refresh_button.setFocusPolicy(Qt.NoFocus)
         times_button.setFocusPolicy(Qt.NoFocus)
@@ -389,6 +402,8 @@ class MainWindow(QMainWindow):
                 self.name_edit,
                 self.theme_combo,
                 self.debug_checkbox,
+                self.server_combo,
+                self.issue_check,
             ]
             + self.opp_combos
             + self.stage_combos
@@ -777,6 +792,33 @@ class MainWindow(QMainWindow):
             )
         return []
 
+    def get_servers(self):
+        server_names = []
+        try:
+            response = requests.get(
+                f"http://{config.be_host}:{config.be_port}/servers", timeout=10
+            )
+            response.raise_for_status()
+            for server in response.json()["data"]:
+                servers[server["display_name"]] = server["id"]
+            server_names = list(servers.keys())
+        except requests.exceptions.Timeout:
+            logger.error("Timeout fetching servers")
+            self.output_text.append(
+                "Error: Timeout fetching server data from server."
+            )
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error fetching servers")
+            self.output_text.append(
+                "Error: Unable to connect to server for server data."
+            )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error fetching servers: {e}")
+            self.output_text.append(
+                "Error: Failed to fetch server data from server."
+            )
+        return server_names
+
     def populate_dropdowns(self):
         stages1 = {}
         character_names = []
@@ -896,6 +938,11 @@ class MainWindow(QMainWindow):
             f"Fetched {len([x for x in characters_json['data'] if x['list_order'] > 0])} characters, {ranked_stages_count} stages (ranked singles) and {len([x for x in moves_json['data'] if x['list_order'] > 0])} moves."
         )
 
+        server_names = self.get_servers()
+        if server_names:
+            self.server_combo.clear()
+            self.server_combo.addItems(server_names)
+
         for x in range(3):
             self.opp_combos[x].clear()
             self.opp_combos[x].addItems(character_names)
@@ -977,6 +1024,8 @@ class MainWindow(QMainWindow):
         )
         jsond["opponent_elo"] = self.opp_elo_spin.value()
         jsond["opponent_name"] = self.name_edit.text() or ""
+        jsond["server_id"] = int(servers.get(self.server_combo.currentText(), -1))
+        jsond["match_issue"] = self.issue_check.isChecked()
         for x in range(3):
             jsond[f"game_{x + 1}_char_pick"] = 2
             jsond[f"game_{x + 1}_opponent_pick"] = int(
@@ -1016,6 +1065,10 @@ class MainWindow(QMainWindow):
             self.change_elo_spin.setValue(data.get("elo_change", 0))
             self.opp_elo_spin.setValue(data.get("opponent_elo", 1000))
             self.name_edit.setText(data.get("opponent_name", ""))
+            server_id = data.get("server_id", -1)
+            server_name = next((k for k, v in servers.items() if v == server_id), "N/A")
+            self.server_combo.setCurrentText(server_name)
+            self.issue_check.setChecked(bool(data.get("match_issue", False)))
             for x in range(3):
                 opp_id = data.get(f"game_{x + 1}_opponent_pick", -1)
                 opp_name = next(
@@ -1110,6 +1163,8 @@ class MainWindow(QMainWindow):
             "game_3_duration": self.duration_spins[2].value(),
             "opponent_elo": self.opp_elo_spin.value(),
             "opponent_name": self.name_edit.text() or "",
+            "server_id": int(servers.get(self.server_combo.currentText(), -1)),
+            "match_issue": self.issue_check.isChecked(),
             "final_move_id": -1,
         }
         self.extra_data = extra_data
