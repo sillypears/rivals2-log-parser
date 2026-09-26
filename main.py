@@ -1025,7 +1025,7 @@ class MainWindow(QMainWindow):
         jsond["opponent_elo"] = self.opp_elo_spin.value()
         jsond["opponent_name"] = self.name_edit.text() or ""
         jsond["server_id"] = int(servers.get(self.server_combo.currentText(), -1))
-        jsond["match_issue"] = self.issue_check.isChecked()
+        jsond["server_issue"] = self.issue_check.isChecked()
         for x in range(3):
             jsond[f"game_{x + 1}_char_pick"] = 2
             jsond[f"game_{x + 1}_opponent_pick"] = int(
@@ -1068,7 +1068,7 @@ class MainWindow(QMainWindow):
             server_id = data.get("server_id", -1)
             server_name = next((k for k, v in servers.items() if v == server_id), "N/A")
             self.server_combo.setCurrentText(server_name)
-            self.issue_check.setChecked(bool(data.get("match_issue", False)))
+            self.issue_check.setChecked(bool(data.get("server_issue", False)))
             for x in range(3):
                 opp_id = data.get(f"game_{x + 1}_opponent_pick", -1)
                 opp_name = next(
@@ -1164,7 +1164,7 @@ class MainWindow(QMainWindow):
             "opponent_elo": self.opp_elo_spin.value(),
             "opponent_name": self.name_edit.text() or "",
             "server_id": int(servers.get(self.server_combo.currentText(), -1)),
-            "match_issue": self.issue_check.isChecked(),
+            "server_issue": self.issue_check.isChecked(),
             "final_move_id": -1,
         }
         self.extra_data = extra_data

@@ -37,7 +37,7 @@ class Match:
     season_id: Optional[int] = -1
     final_move_id: Optional[int] = -1
     server_id: Optional[int] = -1
-    match_issue: Optional[bool] = False
+    server_issue: Optional[bool] = False
     notes: Optional[str] = ""
 
     def __repr__(self):
