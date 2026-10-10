@@ -403,7 +403,7 @@ class MainWindow(QMainWindow):
                 self.theme_combo,
                 self.debug_checkbox,
                 self.server_combo,
-                self.issue_check,
+                self.issue_check
             ]
             + self.opp_combos
             + self.stage_combos
@@ -422,6 +422,7 @@ class MainWindow(QMainWindow):
         self.reset_widget(widget)
 
     def reset_widget(self, widget):
+        print(type(widget))
         if isinstance(widget, QSpinBox):
             if widget == self.opp_elo_spin:
                 widget.setValue(STARTING_DEFAULT)
@@ -436,6 +437,7 @@ class MainWindow(QMainWindow):
         elif isinstance(widget, QLineEdit):
             widget.clear()
         elif isinstance(widget, QCheckBox):
+            print(f"Resetting checkbox: {widget}")
             widget.setChecked(False)
 
     def change_theme(self, theme_name):
@@ -997,6 +999,8 @@ class MainWindow(QMainWindow):
             spin.setValue(-1)
         self.name_edit.clear()
         self.opp_elo_spin.setValue(STARTING_DEFAULT)
+        self.server_combo.setCurrentText("None")
+        self.issue_check.setChecked(False)
 
     def generate_json(self):
         elo_values = self.get_current_elo()
