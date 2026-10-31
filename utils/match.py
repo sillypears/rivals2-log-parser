@@ -38,6 +38,8 @@ class Match:
     final_move_id: Optional[int] = -1
     server_id: Optional[int] = -1
     server_issue: Optional[bool] = False
+    server_ip: Optional[str] = "0.0.0.0"
+    server_port: Optional[int] = -1
     notes: Optional[str] = ""
 
     def __repr__(self):

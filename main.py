@@ -245,9 +245,9 @@ class MainWindow(QMainWindow):
         refresh_button.clicked.connect(self.refresh_top_row)
         bottom_layout.addWidget(refresh_button, 0, 1)
 
-        times_button = QPushButton("Durations")
-        times_button.clicked.connect(self.get_match_times)
-        bottom_layout.addWidget(times_button, 0, 2)
+        auto_populate_button = QPushButton("Auto-Populate")
+        auto_populate_button.clicked.connect(self.auto_populate)
+        bottom_layout.addWidget(auto_populate_button, 0, 2)
 
         copy_button = QPushButton("Copy")
         copy_button.clicked.connect(self.generate_json)
@@ -297,10 +297,27 @@ class MainWindow(QMainWindow):
         self.name_edit.setCompleter(QCompleter(self.get_opponent_names()))
         bottom_layout.addWidget(self.name_edit, 3, 2, 1, 4)
 
+        # Server connection info
+        bottom_layout.addWidget(QLabel("Server IP"), 4, 1)
+        self.server_ip_edit = QLineEdit()
+        self.server_ip_edit.setPlaceholderText("auto from log")
+        self.server_ip_edit.setToolTip("Server IP (auto-filled from Rivals2.log)")
+        bottom_layout.addWidget(self.server_ip_edit, 4, 2)
+
+        bottom_layout.addWidget(QLabel("Port"), 4, 3)
+        self.server_port_spin = QSpinBox()
+        self.server_port_spin.setRange(-1, 65535)
+        self.server_port_spin.setValue(-1)
+        self.server_port_spin.setMinimumWidth(80)
+        self.server_port_spin.setToolTip(
+            "Server port (auto-filled from Rivals2.log)"
+        )
+        bottom_layout.addWidget(self.server_port_spin, 4, 4)
+
         # Game sections
-        bottom_layout.addWidget(QLabel("OppChar"), 4, 1)
-        bottom_layout.addWidget(QLabel("Stage"), 4, 2)
-        bottom_layout.addWidget(QLabel("FinalMove"), 4, 3)
+        bottom_layout.addWidget(QLabel("OppChar"), 5, 1)
+        bottom_layout.addWidget(QLabel("Stage"), 5, 2)
+        bottom_layout.addWidget(QLabel("FinalMove"), 5, 3)
 
         self.opp_combos = []
         self.stage_combos = []
@@ -309,7 +326,7 @@ class MainWindow(QMainWindow):
         self.duration_spins = []
 
         for x in range(3):
-            row = x + 5
+            row = x + 6
             bottom_layout.addWidget(QLabel(f"Game {x + 1}"), row, 0, Qt.AlignRight)
 
             opp_combo = QComboBox()
@@ -356,9 +373,11 @@ class MainWindow(QMainWindow):
         self.change_elo_spin.setFocusPolicy(Qt.NoFocus)
         self.server_combo.setFocusPolicy(Qt.NoFocus)
         self.issue_check.setFocusPolicy(Qt.NoFocus)
+        self.server_ip_edit.setFocusPolicy(Qt.ClickFocus)
+        self.server_port_spin.setFocusPolicy(Qt.ClickFocus)
         self.lookup_button.setFocusPolicy(Qt.NoFocus)
         refresh_button.setFocusPolicy(Qt.NoFocus)
-        times_button.setFocusPolicy(Qt.NoFocus)
+        auto_populate_button.setFocusPolicy(Qt.NoFocus)
         copy_button.setFocusPolicy(Qt.NoFocus)
         clear_button.setFocusPolicy(Qt.NoFocus)
         paste_button.setFocusPolicy(Qt.NoFocus)
@@ -403,7 +422,9 @@ class MainWindow(QMainWindow):
                 self.theme_combo,
                 self.debug_checkbox,
                 self.server_combo,
-                self.issue_check
+                self.issue_check,
+                self.server_ip_edit,
+                self.server_port_spin,
             ]
             + self.opp_combos
             + self.stage_combos
@@ -431,6 +452,8 @@ class MainWindow(QMainWindow):
             elif widget == self.change_elo_spin:
                 widget.setValue(0)
             elif widget in self.duration_spins:
+                widget.setValue(-1)
+            elif widget == self.server_port_spin:
                 widget.setValue(-1)
         elif isinstance(widget, QComboBox):
             widget.setCurrentIndex(0)
@@ -756,6 +779,17 @@ class MainWindow(QMainWindow):
         self.my_elo_spin.setValue(int(self.get_current_elo()["data"]["current_elo"]))
         self.change_elo_spin.setValue(0)
 
+    def auto_populate(self):
+        """Auto-Populate button: fill durations from the log plus server
+        IP/port and auto-select the server region."""
+        entries = self.autofill_server_from_log()
+        self.get_match_times()
+        if entries:
+            listing = ", ".join(
+                f"{e['ip']}:{e['port']}_{e['region']}" for e in entries
+            )
+            self.output_text.append(f"Servers: {listing}")
+
     def get_match_times(self):
         data = roll_up_durations([os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log")])
         alld = data['all_durations'][-3:] if len(data['all_durations']) >= 3 else data['all_durations'][-2:]
@@ -1001,6 +1035,8 @@ class MainWindow(QMainWindow):
         self.opp_elo_spin.setValue(STARTING_DEFAULT)
         self.server_combo.setCurrentText("None")
         self.issue_check.setChecked(False)
+        self.server_ip_edit.clear()
+        self.server_port_spin.setValue(-1)
 
     def generate_json(self):
         elo_values = self.get_current_elo()
@@ -1030,6 +1066,8 @@ class MainWindow(QMainWindow):
         jsond["opponent_name"] = self.name_edit.text() or ""
         jsond["server_id"] = int(servers.get(self.server_combo.currentText(), -1))
         jsond["server_issue"] = self.issue_check.isChecked()
+        jsond["server_ip"] = self.server_ip_edit.text()
+        jsond["server_port"] = self.server_port_spin.value()
         for x in range(3):
             jsond[f"game_{x + 1}_char_pick"] = 2
             jsond[f"game_{x + 1}_opponent_pick"] = int(
@@ -1073,6 +1111,8 @@ class MainWindow(QMainWindow):
             server_name = next((k for k, v in servers.items() if v == server_id), "N/A")
             self.server_combo.setCurrentText(server_name)
             self.issue_check.setChecked(bool(data.get("server_issue", False)))
+            self.server_ip_edit.setText(data.get("server_ip", ""))
+            self.server_port_spin.setValue(int(data.get("server_port") or -1))
             for x in range(3):
                 opp_id = data.get(f"game_{x + 1}_opponent_pick", -1)
                 opp_name = next(
@@ -1169,6 +1209,8 @@ class MainWindow(QMainWindow):
             "opponent_name": self.name_edit.text() or "",
             "server_id": int(servers.get(self.server_combo.currentText(), -1)),
             "server_issue": self.issue_check.isChecked(),
+            "server_ip": self.server_ip_edit.text(),
+            "server_port": self.server_port_spin.value(),
             "final_move_id": -1,
         }
         self.extra_data = extra_data
@@ -1198,6 +1240,40 @@ class MainWindow(QMainWindow):
 
     def sync_games(self):
         self.opp_combos[1].setCurrentText(self.opp_combos[0].currentText())
+
+    def _select_server_by_region(self, region):
+        """Auto-select the server dropdown entry matching a log region name."""
+        if not region:
+            return
+
+        def norm(s):
+            return (s or "").lower().replace(" ", "").replace("_", "")
+
+        target = norm(region)
+        for i in range(self.server_combo.count()):
+            if norm(self.server_combo.itemText(i)) == target:
+                self.server_combo.setCurrentIndex(i)
+                return
+        logger.warning(f"No server dropdown match for region: {region}")
+
+    def autofill_server_from_log(self):
+        """Pre-fill server IP/port and auto-select the region from the most
+        recent server connect in Rivals2.log (the current match's server).
+
+        Returns the full list of server entries found in the log."""
+        try:
+            entries = log_parser.find_server_in_logs()
+        except Exception as e:
+            logger.error(f"Failed reading server info from log: {e}")
+            return []
+        if not entries:
+            logger.debug("No server entries found in Rivals2.log")
+            return []
+        entry = entries[-1]
+        self.server_ip_edit.setText(entry.get("ip") or "")
+        self.server_port_spin.setValue(int(entry.get("port") or -1))
+        self._select_server_by_region(entry.get("region"))
+        return entries
 
 
 if __name__ == "__main__":

@@ -42,6 +42,89 @@ def search_file(file: TextIO, string: str):
         return False
 
 
+SERVER_CONNECT_PATTERN = re.compile(
+    r"OnPollMatchUserDataSuccess, (\d+\.\d+\.\d+\.\d+):(\d+)_(\S+)"
+)
+TIMESTAMP_PATTERN = re.compile(r"\[(\d{4}\.\d{2}\.\d{2})-(\d{2}\.\d{2}\.\d{2})")
+
+
+def extract_timestamp(line) -> datetime | None:
+    """Extract log timestamp [YYYY.MM.DD-HH.MM.SS] from a log line"""
+    m = TIMESTAMP_PATTERN.search(line)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(
+            f"{m.group(1)} {m.group(2)}", "%Y.%m.%d %H.%M.%S"
+        )
+    except ValueError:
+        return None
+
+
+def find_server_in_logs(files: list[str] | None = None) -> list[dict]:
+    """
+    Scan matchmaking log lines for server connects, in log order.
+
+    Each entry looks like:
+      URivalsMatchmakingSubsystem::OnPollMatchUserDataSuccess, 97.107.132.35:32222_Newark
+
+    Returns a chronological list of dicts: {ip, port, region, match_date}.
+    The last entry is the current match's server.
+    """
+    if files is None:
+        files = [os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log")]
+    entries = []
+    for file in files:
+        try:
+            with open(file, "r") as f:
+                for line in f:
+                    if "OnPollMatchUserDataSuccess," not in line:
+                        continue
+                    m = SERVER_CONNECT_PATTERN.search(line)
+                    if not m:
+                        continue
+                    entries.append(
+                        {
+                            "ip": m.group(1),
+                            "port": int(m.group(2)),
+                            "region": m.group(3),
+                            "match_date": extract_timestamp(line),
+                        }
+                    )
+        except OSError as e:
+            logger.error(f"Error reading log {file}: {e}")
+    return entries
+
+
+def tie_match_server(match: Match, entries: list[dict]) -> dict | None:
+    """
+    Tie a match to the most recent server connect by timestamp:
+    the last entry at or before the match's time. Falls back to the last
+    entry in the log when either timestamp is missing.
+    """
+    chosen = None
+    for entry in entries:
+        entry_dt = entry["match_date"]
+        if entry_dt is not None and match.match_date is not None:
+            if entry_dt > match.match_date:
+                break
+        chosen = entry
+    if chosen is None and entries:
+        chosen = entries[-1]
+    if chosen:
+        match.server_ip = chosen["ip"]
+        match.server_port = chosen["port"]
+    return chosen
+
+
+def get_current_server(files: list[str] | None = None) -> dict | None:
+    """Most recent server connect in the log (the current match's server)."""
+    if files is None:
+        files = [os.path.join(RIVALS_LOG_FOLDER, "Rivals2.log")]
+    entries = find_server_in_logs(files)
+    return entries[-1] if entries else None
+
+
 def see_if_game_exists(match_id, match_date):
     try:
         res = requests.get(
@@ -151,7 +234,13 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match] | int:
     logger.debug(potential_times)
     if len(new_matches) < 1:
         return count
+    server_entries = find_server_in_logs(replay_files)
     for match in new_matches:
+        chosen_server = tie_match_server(match, server_entries)
+        if chosen_server:
+            logger.debug(
+                f"Tied game {match.ranked_game_number} to server {chosen_server['ip']}:{chosen_server['port']} ({chosen_server['region']})"
+            )
         res = None
         if len(new_matches) == 1 and extra_data:
             logger.debug(f"creating new_match, {len(new_matches)}, {extra_data}")
@@ -175,6 +264,12 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match] | int:
                 opponent_name=extra_data["opponent_name"],
                 server_id=extra_data.get("server_id", -1),
                 server_issue=extra_data.get("server_issue", False),
+                server_ip=extra_data.get("server_ip") or match.server_ip,
+                server_port=(
+                    extra_data.get("server_port")
+                    if int(extra_data.get("server_port") or -1) >= 0
+                    else match.server_port
+                ),
                 game_1_char_pick=extra_data["game_1_char_pick"],
                 game_1_opponent_pick=extra_data["game_1_opponent_pick"],
                 game_1_stage=extra_data["game_1_stage"],
@@ -215,6 +310,8 @@ def parse_log(dev: int, extra_data: dict = {}) -> list[Match] | int:
                     k=24,
                 ),
                 opponent_name=match.opponent_name,
+                server_ip=match.server_ip,
+                server_port=match.server_port,
                 game_1_char_pick=match.game_1_char_pick,
                 game_1_opponent_pick=match.game_1_opponent_pick,
                 game_1_stage=match.game_1_stage,
